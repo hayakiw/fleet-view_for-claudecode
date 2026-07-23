@@ -36,30 +36,37 @@ function projectName(cwd) {
 
 const TASK_HISTORY_SHOWN = 3;
 
+// Each turn pairs a request with the response that answered it, so a reply
+// never appears disconnected from what it was replying to. A turn can have
+// a null prompt (e.g. a background continuation with no captured human
+// instruction) — shown with a placeholder rather than hidden.
 function renderTaskHistory(session) {
-  const history = session.promptHistory && session.promptHistory.length
-    ? session.promptHistory
-    : session.lastPrompt
-    ? [{ ts: session.updatedAt, text: session.lastPrompt }]
-    : [];
-  if (history.length === 0) return "";
+  const turns = session.turns || [];
+  if (turns.length === 0) return "";
 
-  const recent = history.slice(-TASK_HISTORY_SHOWN).reverse(); // newest first
-  const hiddenCount = history.length - recent.length;
+  const recent = turns.slice(-TASK_HISTORY_SHOWN).reverse(); // newest first
+  const hiddenCount = turns.length - recent.length;
 
   const items = recent
-    .map(
-      (h, i) => `
+    .map((t, i) => {
+      const promptText = t.prompt || "（依頼なし・バックグラウンド継続作業）";
+      const responseHtml = t.response
+        ? `<div class="task-response" title="${escapeHtml(t.response)}">→ ${escapeHtml(t.response)}</div>`
+        : "";
+      return `
         <div class="task-item${i === 0 ? " latest" : ""}">
-          <span class="task-time">${escapeHtml(new Date(h.ts).toLocaleTimeString("ja-JP"))}</span>
-          <span class="task-text" title="${escapeHtml(h.text)}">${escapeHtml(h.text)}</span>
-        </div>`
-    )
+          <div class="task-row">
+            <span class="task-time">${escapeHtml(new Date(t.ts).toLocaleTimeString("ja-JP"))}</span>
+            <span class="task-text${t.prompt ? "" : " task-text-empty"}" title="${escapeHtml(promptText)}">${escapeHtml(promptText)}</span>
+          </div>
+          ${responseHtml}
+        </div>`;
+    })
     .join("");
 
   return `
     <div class="card-task">
-      <div class="card-task-label">依頼${history.length > 1 ? `（${history.length}件）` : ""}</div>
+      <div class="card-task-label">やり取り${turns.length > 1 ? `（${turns.length}件）` : ""}</div>
       ${items}
       ${hiddenCount > 0 ? `<div class="task-more">他 ${hiddenCount} 件</div>` : ""}
     </div>`;
@@ -112,11 +119,6 @@ function renderCard(session) {
         <span class="badge ${status}">${label}</span>
       </div>
       ${renderTaskHistory(session)}
-      ${session.lastResponse ? `
-      <div class="card-response">
-        <div class="card-response-label">回答</div>
-        <div class="card-response-text" title="${escapeHtml(session.lastResponse)}">${escapeHtml(session.lastResponse)}</div>
-      </div>` : ""}
       <div class="card-current">${activityLine}</div>
       ${session.lastToolDetail ? `<div class="card-detail" title="${escapeHtml(session.lastToolDetail)}">${escapeHtml(session.lastToolDetail)}</div>` : ""}
       <div class="card-feed-label">作業ログ</div>

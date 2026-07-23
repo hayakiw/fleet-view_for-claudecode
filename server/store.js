@@ -8,7 +8,7 @@ const STATE_FILE = path.join(DATA_DIR, "state.json");
 const EVENTS_LOG = path.join(DATA_DIR, "events.jsonl");
 
 const MAX_EVENTS_PER_SESSION = 200;
-const MAX_PROMPT_HISTORY = 6;
+const MAX_TURN_HISTORY = 6;
 const SESSION_STALE_MS = 1000 * 60 * 60 * 6; // 6h: drop open/idle sessions if untouched
 const ENDED_STALE_MS = 1000 * 60 * 5; // 5min: a session that has actually ended shouldn't linger
 
@@ -22,9 +22,25 @@ function loadState() {
   try {
     const raw = JSON.parse(fs.readFileSync(STATE_FILE, "utf-8"));
     for (const s of raw.sessions ?? []) {
+      // Migrate state saved before request/response were paired into `turns`.
+      if (!s.turns) {
+        s.turns = (s.promptHistory ?? []).map((h) => ({ ts: h.ts, prompt: h.text, response: null, responseTs: null }));
+        if (s.lastResponse) {
+          const last = s.turns[s.turns.length - 1];
+          if (last) {
+            last.response = s.lastResponse;
+            last.responseTs = s.updatedAt;
+          } else {
+            s.turns.push({ ts: s.updatedAt, prompt: null, response: s.lastResponse, responseTs: s.updatedAt });
+          }
+        }
+        delete s.promptHistory;
+        delete s.lastPrompt;
+        delete s.lastResponse;
+      }
       // Self-heal state saved before the system-prompt filter existed (or written
       // by a race with an older server process) instead of requiring manual repair.
-      if (s.lastPrompt && isSystemInjectedPrompt(s.lastPrompt)) s.lastPrompt = null;
+      s.turns = s.turns.filter((t) => !t.prompt || !isSystemInjectedPrompt(t.prompt));
       sessions.set(s.id, s);
     }
   } catch (err) {
@@ -121,10 +137,8 @@ function ingest(rawEvent) {
       updatedAt: now,
       lastTool: null,
       lastToolDetail: null,
-      lastPrompt: null,
       lastMessage: null,
-      lastResponse: null,
-      promptHistory: [],
+      turns: [],
       eventCount: 0,
       events: [],
     };
@@ -135,16 +149,16 @@ function ingest(rawEvent) {
   session.updatedAt = now;
   session.eventCount += 1;
   session.status = STATUS_BY_HOOK[hookName] ?? session.status;
-  if (!session.promptHistory) session.promptHistory = []; // sessions persisted before this field existed
+  if (!session.turns) session.turns = []; // sessions persisted before this field existed
 
   if (hookName === "PreToolUse") {
     session.lastTool = toolName;
     session.lastToolDetail = summarizeToolInput(toolName, toolInput);
   }
   if (hookName === "UserPromptSubmit" && prompt && !isSystemInjectedPrompt(prompt)) {
-    session.lastPrompt = prompt.length > 2000 ? prompt.slice(0, 2000) + "…" : prompt;
-    session.promptHistory.push({ ts: now, text: session.lastPrompt });
-    if (session.promptHistory.length > MAX_PROMPT_HISTORY) session.promptHistory.shift();
+    const text = prompt.length > 2000 ? prompt.slice(0, 2000) + "…" : prompt;
+    session.turns.push({ ts: now, prompt: text, response: null, responseTs: null });
+    if (session.turns.length > MAX_TURN_HISTORY) session.turns.shift();
   }
   if (hookName === "Notification" && message) {
     session.lastMessage = message;
@@ -156,7 +170,19 @@ function ingest(rawEvent) {
     session.lastMessage = reason ? `session end (${reason})` : "session end";
   }
   if ((hookName === "Stop" || hookName === "SubagentStop") && assistantResponse) {
-    session.lastResponse = assistantResponse.length > 2000 ? assistantResponse.slice(0, 2000) + "…" : assistantResponse;
+    const text = assistantResponse.length > 2000 ? assistantResponse.slice(0, 2000) + "…" : assistantResponse;
+    const last = session.turns[session.turns.length - 1];
+    if (last && !last.response) {
+      // Pair with the request that's still waiting on a reply.
+      last.response = text;
+      last.responseTs = now;
+    } else {
+      // No open turn to attach to (e.g. a background continuation whose
+      // triggering prompt was filtered out) — still show the response
+      // rather than dropping it, just without a paired request.
+      session.turns.push({ ts: now, prompt: null, response: text, responseTs: now });
+      if (session.turns.length > MAX_TURN_HISTORY) session.turns.shift();
+    }
   }
 
   const entry = {
