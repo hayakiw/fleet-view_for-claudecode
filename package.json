@@ -1,0 +1,16 @@
+{
+  "name": "fleetview",
+  "version": "0.1.0",
+  "description": "Local dashboard for monitoring multiple Claude Code sessions in real time and generating periodic activity reports",
+  "private": true,
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
+  }
+}

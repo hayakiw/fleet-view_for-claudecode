@@ -1,0 +1,68 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "node \"C:\\Users\\hayak\\work\\dojo\\agent\\hooks\\report-event.mjs\"" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "node \"C:\\Users\\hayak\\work\\dojo\\agent\\hooks\\report-event.mjs\"" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "node \"C:\\Users\\hayak\\work\\dojo\\agent\\hooks\\report-event.mjs\"" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "node \"C:\\Users\\hayak\\work\\dojo\\agent\\hooks\\report-event.mjs\"" }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "node \"C:\\Users\\hayak\\work\\dojo\\agent\\hooks\\report-event.mjs\"" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "node \"C:\\Users\\hayak\\work\\dojo\\agent\\hooks\\report-event.mjs\"" }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "node \"C:\\Users\\hayak\\work\\dojo\\agent\\hooks\\report-event.mjs\"" }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "node \"C:\\Users\\hayak\\work\\dojo\\agent\\hooks\\report-event.mjs\"" }
+        ]
+      }
+    ]
+  }
+}

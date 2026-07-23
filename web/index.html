@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FleetView — Claude Code Monitor</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="dot" id="conn-dot"></span>
+    <span class="brand-name">FleetView</span>
+  </div>
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="agents">エージェント</button>
+    <button class="tab-btn" data-tab="reports">レポート</button>
+  </nav>
+  <div class="actions">
+    <button id="gen-report-btn">今すぐレポート生成</button>
+  </div>
+</header>
+
+<main>
+  <section id="tab-agents" class="tab-panel active">
+    <div id="empty-state" class="empty-state" hidden>
+      <p>まだ接続されたセッションがありません。</p>
+      <p class="hint">hooks/settings-snippet.json の内容を Claude Code の設定に追加すると、
+      セッション開始時からここに表示されます。</p>
+    </div>
+    <div id="agent-grid"></div>
+  </section>
+
+  <section id="tab-reports" class="tab-panel">
+    <div class="reports-layout">
+      <aside class="reports-list" id="reports-list"></aside>
+      <div class="report-view" id="report-view">
+        <p class="hint">左のリストからレポートを選択してください。</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
