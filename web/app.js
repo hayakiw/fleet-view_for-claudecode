@@ -206,8 +206,16 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
   });
 });
 
-// --- Org chart (role-based agents) ---
+// --- Org chart (role-based agents, any project) ---
+async function loadProjectList() {
+  const res = await fetch("/api/projects");
+  const projects = await res.json();
+  const datalist = document.getElementById("org-project-list");
+  datalist.innerHTML = projects.map((p) => `<option value="${escapeHtml(p)}"></option>`).join("");
+}
+
 async function loadRoles() {
+  loadProjectList();
   const res = await fetch("/api/roles");
   const roles = await res.json();
   renderRoles(roles);
@@ -233,10 +241,11 @@ function renderRoles(roles) {
           ${
             latestTurn
               ? `<div class="role-current" title="${escapeHtml(latestTurn.prompt || "")}">
-                  ${latestTurn.prompt ? escapeHtml(latestTurn.prompt) : "(バックグラウンド継続作業)"}
+                  ${escapeHtml(s.cwd || "")}${s.cwd ? " — " : ""}${latestTurn.prompt ? escapeHtml(latestTurn.prompt) : "(バックグラウンド継続作業)"}
                  </div>`
               : ""
           }
+          <textarea class="role-instruction" placeholder="この役割への指示を入力…" rows="2"></textarea>
           <button type="button" class="role-run-btn" data-role="${r.id}">▶ 起動する</button>
         </div>`;
     })
@@ -244,10 +253,19 @@ function renderRoles(roles) {
 
   grid.querySelectorAll(".role-run-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      const card = btn.closest(".role-card");
+      const cwd = document.getElementById("org-project-input").value.trim();
+      const instruction = card.querySelector(".role-instruction").value.trim();
+      if (!cwd) { alert("対象プロジェクトのディレクトリを入力してください。"); return; }
+      if (!instruction) { alert("指示内容を入力してください。"); return; }
       btn.disabled = true;
       btn.textContent = "起動中…";
       try {
-        const res = await fetch(`/api/roles/${btn.dataset.role}/run`, { method: "POST" });
+        const res = await fetch(`/api/roles/${btn.dataset.role}/run`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ cwd, instruction }),
+        });
         btn.textContent = res.ok ? "✓ 起動しました" : "起動に失敗しました";
         if (res.ok) document.querySelector('.tab-btn[data-tab="agents"]').click();
       } catch {

@@ -2,15 +2,25 @@ import express from "express";
 import { WebSocketServer } from "ws";
 import http from "node:http";
 import path from "node:path";
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import { ingest, listActiveSessions, getSession, findLatestSessionByAgentType } from "./store.js";
+import {
+  ingest,
+  listActiveSessions,
+  getSession,
+  findLatestSessionByAgentType,
+  listKnownProjects,
+} from "./store.js";
 import { generateAndSave, listReports, readReport } from "./report.js";
 import { listTasks, addTask, setTaskDone, deleteTask } from "./tasks.js";
 import { listRoles, getRole } from "./roles.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.join(__dirname, "..");
+const BACKLOG_AGENT_PROMPT =
+  `${PROJECT_ROOT} ディレクトリで AGENT_INSTRUCTIONS.md の指示に従い、` +
+  `TASKS.md のバックログを1件消化してください。`;
 const PORT = process.env.FLEETVIEW_PORT ? Number(process.env.FLEETVIEW_PORT) : 4317;
 const REPORT_INTERVAL_MIN = process.env.FLEETVIEW_REPORT_INTERVAL_MIN
   ? Number(process.env.FLEETVIEW_REPORT_INTERVAL_MIN)
@@ -127,15 +137,16 @@ app.delete("/api/tasks/:index", (req, res) => {
 // into a terminal. Spawned with --bg so the HTTP request returns immediately;
 // the launched session reports into FleetView through the normal hooks like
 // any other Claude Code session — no separate log viewer needed here.
-// --agent selects the matching .claude/agents/<id>.md persona, and the
-// resulting session's agent_type field is how the org-chart tab finds it.
-function dispatchRole(role) {
+// --agent selects the matching ~/.claude/agents/<id>.md persona (user-level,
+// so it resolves under any project's cwd), and the resulting session's
+// agent_type field is how the org-chart tab finds it again.
+function dispatchRole(roleId, cwd, prompt) {
   const child = spawn(
     "claude",
-    ["--bg", "--permission-mode", "auto", "--agent", role.id, role.prompt],
-    { cwd: PROJECT_ROOT, detached: true, stdio: "ignore" }
+    ["--bg", "--permission-mode", "auto", "--agent", roleId, prompt],
+    { cwd, detached: true, stdio: "ignore" }
   );
-  child.on("error", (err) => console.error(`[roles/${role.id}] spawn failed:`, err.message));
+  child.on("error", (err) => console.error(`[roles/${roleId}] spawn failed:`, err.message));
   child.unref();
 }
 
@@ -146,18 +157,31 @@ app.get("/api/roles", (_req, res) => {
     return {
       ...r,
       session: session
-        ? { id: session.id, status: session.status, updatedAt: session.updatedAt, turns: session.turns }
+        ? { id: session.id, cwd: session.cwd, status: session.status, updatedAt: session.updatedAt, turns: session.turns }
         : null,
     };
   });
   res.json(roles);
 });
 
+app.get("/api/projects", (_req, res) => {
+  res.json(listKnownProjects());
+});
+
+// Generic dispatch used by the 組織図 tab: any project directory, any
+// free-text instruction. Distinct from /api/tasks/run below, which always
+// targets this project with the fixed TASKS.md-consuming prompt.
 app.post("/api/roles/:id/run", (req, res) => {
   const role = getRole(req.params.id);
   if (!role) return res.status(404).json({ error: "unknown role" });
+  const cwd = String(req.body?.cwd ?? "").trim();
+  const instruction = String(req.body?.instruction ?? "").trim();
+  if (!cwd || !fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) {
+    return res.status(400).json({ error: "cwd must be an existing directory" });
+  }
+  if (!instruction) return res.status(400).json({ error: "instruction is required" });
   try {
-    dispatchRole(role);
+    dispatchRole(role.id, cwd, instruction);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -165,9 +189,8 @@ app.post("/api/roles/:id/run", (req, res) => {
 });
 
 app.post("/api/tasks/run", (_req, res) => {
-  const role = getRole("engineer");
   try {
-    dispatchRole(role);
+    dispatchRole("engineer", PROJECT_ROOT, BACKLOG_AGENT_PROMPT);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

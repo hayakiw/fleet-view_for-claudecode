@@ -173,6 +173,8 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
   min-width: 0;
   font-size: 12.5px;
   transition: border-color .2s;
+  height: 300px;
+  overflow: hidden;
 }
 
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
@@ -251,7 +253,22 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 .card-feed div { padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-footer { font-size: 10px; color: var(--text-dim); display: flex; justify-content: space-between; font-family: var(--mono); }
 
-.org-hint { margin-bottom: 14px; }
+.org-hint { margin-bottom: 10px; }
+.org-project-bar {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 16px; max-width: 640px; flex-wrap: wrap;
+}
+.org-project-bar label { font-size: 12px; color: var(--text-dim); flex: none; }
+.org-project-bar input {
+  flex: 1; min-width: 240px; background: color-mix(in srgb, var(--surface) 80%, transparent); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 13px; font-family: var(--mono);
+}
+.org-project-bar input:focus { outline: none; border-color: var(--accent); }
+.role-instruction {
+  background: color-mix(in srgb, var(--surface) 60%, transparent); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px;
+  font-family: inherit; resize: vertical; min-height: 40px;
+}
+.role-instruction:focus { outline: none; border-color: var(--accent); }
 .org-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; max-width: 900px;
 }

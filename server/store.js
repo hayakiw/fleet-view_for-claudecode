@@ -231,6 +231,14 @@ function findLatestSessionByAgentType(agentType) {
   return matches[0] ?? null;
 }
 
+function listKnownProjects() {
+  const cwds = new Set();
+  for (const s of sessions.values()) {
+    if (s.cwd && s.cwd !== "unknown") cwds.add(s.cwd);
+  }
+  return Array.from(cwds).sort();
+}
+
 function readEventsSince(sinceMs) {
   if (!fs.existsSync(EVENTS_LOG)) return [];
   const lines = fs.readFileSync(EVENTS_LOG, "utf-8").split("\n").filter(Boolean);
@@ -248,4 +256,12 @@ function readEventsSince(sinceMs) {
 
 loadState();
 
-export { ingest, listActiveSessions, getSession, findLatestSessionByAgentType, readEventsSince, isSystemInjectedPrompt };
+export {
+  ingest,
+  listActiveSessions,
+  getSession,
+  findLatestSessionByAgentType,
+  listKnownProjects,
+  readEventsSince,
+  isSystemInjectedPrompt,
+};
