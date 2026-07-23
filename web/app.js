@@ -112,6 +112,11 @@ function renderCard(session) {
         <span class="badge ${status}">${label}</span>
       </div>
       ${renderTaskHistory(session)}
+      ${session.lastResponse ? `
+      <div class="card-response">
+        <div class="card-response-label">回答</div>
+        <div class="card-response-text" title="${escapeHtml(session.lastResponse)}">${escapeHtml(session.lastResponse)}</div>
+      </div>` : ""}
       <div class="card-current">${activityLine}</div>
       ${session.lastToolDetail ? `<div class="card-detail" title="${escapeHtml(session.lastToolDetail)}">${escapeHtml(session.lastToolDetail)}</div>` : ""}
       <div class="card-feed-label">作業ログ</div>

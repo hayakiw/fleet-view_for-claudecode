@@ -3,6 +3,8 @@
 // server. Must never block or fail the hook: always exits 0, with a short
 // network timeout, regardless of whether the server is reachable.
 
+import fs from "node:fs";
+
 const PORT = process.env.FLEETVIEW_PORT || 4317;
 const URL = `http://localhost:${PORT}/api/events`;
 const TIMEOUT_MS = 1500;
@@ -18,6 +20,40 @@ function truncateDeep(value, maxLen = 2000) {
     return out;
   }
   return value;
+}
+
+// Hook payloads don't include Claude's reply text, only the transcript path.
+// Stop fires once per completed turn, so a small tail-read here is cheap.
+function extractLastAssistantText(transcriptPath) {
+  try {
+    if (!transcriptPath || !fs.existsSync(transcriptPath)) return undefined;
+    const size = fs.statSync(transcriptPath).size;
+    const readSize = Math.min(size, 60000);
+    const fd = fs.openSync(transcriptPath, "r");
+    const buf = Buffer.alloc(readSize);
+    fs.readSync(fd, buf, 0, readSize, size - readSize);
+    fs.closeSync(fd);
+    const lines = buf.toString("utf-8").split("\n").filter(Boolean);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      let obj;
+      try {
+        obj = JSON.parse(lines[i]);
+      } catch {
+        continue;
+      }
+      if (obj.type === "assistant" && Array.isArray(obj.message?.content)) {
+        const text = obj.message.content
+          .filter((b) => b.type === "text" && b.text)
+          .map((b) => b.text)
+          .join("\n")
+          .trim();
+        if (text) return text;
+      }
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 async function readStdin() {
@@ -44,6 +80,10 @@ async function main() {
 
   if (event.tool_input) event.tool_input = truncateDeep(event.tool_input);
   if (event.tool_response) event.tool_response = truncateDeep(event.tool_response, 500);
+  if (event.hook_event_name === "Stop" || event.hook_event_name === "SubagentStop") {
+    const response = extractLastAssistantText(event.transcript_path);
+    if (response) event.assistant_response = response.length > 3000 ? response.slice(0, 3000) + "…" : response;
+  }
 
   try {
     await fetch(URL, {

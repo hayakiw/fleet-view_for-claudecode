@@ -9,7 +9,8 @@ const EVENTS_LOG = path.join(DATA_DIR, "events.jsonl");
 
 const MAX_EVENTS_PER_SESSION = 200;
 const MAX_PROMPT_HISTORY = 6;
-const SESSION_STALE_MS = 1000 * 60 * 60 * 6; // 6h: drop from active view if untouched
+const SESSION_STALE_MS = 1000 * 60 * 60 * 6; // 6h: drop open/idle sessions if untouched
+const ENDED_STALE_MS = 1000 * 60 * 5; // 5min: a session that has actually ended shouldn't linger
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -103,6 +104,7 @@ function ingest(rawEvent) {
     prompt,
     source,
     reason,
+    assistant_response: assistantResponse,
   } = rawEvent;
 
   if (!sessionId || !hookName) {
@@ -121,6 +123,7 @@ function ingest(rawEvent) {
       lastToolDetail: null,
       lastPrompt: null,
       lastMessage: null,
+      lastResponse: null,
       promptHistory: [],
       eventCount: 0,
       events: [],
@@ -152,6 +155,9 @@ function ingest(rawEvent) {
   if (hookName === "SessionEnd") {
     session.lastMessage = reason ? `session end (${reason})` : "session end";
   }
+  if ((hookName === "Stop" || hookName === "SubagentStop") && assistantResponse) {
+    session.lastResponse = assistantResponse.length > 2000 ? assistantResponse.slice(0, 2000) + "…" : assistantResponse;
+  }
 
   const entry = {
     ts: now,
@@ -180,7 +186,7 @@ function ingest(rawEvent) {
 function listActiveSessions() {
   const now = Date.now();
   return Array.from(sessions.values())
-    .filter((s) => now - s.updatedAt < SESSION_STALE_MS)
+    .filter((s) => now - s.updatedAt < (s.status === "ended" ? ENDED_STALE_MS : SESSION_STALE_MS))
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
