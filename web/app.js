@@ -48,13 +48,13 @@ function renderTaskHistory(session) {
     .map((t, i) => {
       const promptText = t.prompt || "（依頼なし・バックグラウンド継続作業）";
       const responseHtml = t.response
-        ? `<div class="task-response" title="${escapeHtml(t.response)}">→ ${escapeHtml(t.response)}</div>`
+        ? `<div class="task-response" data-tooltip="${escapeHtml(t.response)}">→ ${escapeHtml(t.response)}</div>`
         : "";
       return `
         <div class="task-item${i === 0 ? " latest" : ""}">
           <div class="task-row">
             <span class="task-time">${escapeHtml(new Date(t.ts).toLocaleTimeString("ja-JP"))}</span>
-            <span class="task-text${t.prompt ? "" : " task-text-empty"}" title="${escapeHtml(promptText)}">${escapeHtml(promptText)}</span>
+            <span class="task-text${t.prompt ? "" : " task-text-empty"}" data-tooltip="${escapeHtml(promptText)}">${escapeHtml(promptText)}</span>
           </div>
           ${responseHtml}
         </div>`;
@@ -85,7 +85,7 @@ function renderFeed(session) {
           : e.detail
           ? `${e.tool}: ${e.detail}`
           : e.tool || e.hook;
-      return `<div title="${escapeHtml(text)}">${escapeHtml(new Date(e.ts).toLocaleTimeString("ja-JP"))} ${escapeHtml(text)}</div>`;
+      return `<div data-tooltip="${escapeHtml(text)}">${escapeHtml(new Date(e.ts).toLocaleTimeString("ja-JP"))} ${escapeHtml(text)}</div>`;
     })
     .join("");
 }
@@ -111,12 +111,12 @@ function renderCard(session) {
   return `
     <div class="card${isActive ? " is-active" : ""}" data-id="${escapeHtml(session.id)}" data-status="${escapeHtml(status)}">
       <div class="card-head">
-        <span class="card-id" title="${escapeHtml(session.id)}">${escapeHtml(session.id.slice(0, 8))}…</span>
+        <span class="card-id" data-tooltip="${escapeHtml(session.id)}">${escapeHtml(session.id.slice(0, 8))}…</span>
         <span class="badge ${status}">${label}</span>
       </div>
       ${renderTaskHistory(session)}
       <div class="card-current">${activityLine}</div>
-      ${session.lastToolDetail ? `<div class="card-detail" title="${escapeHtml(session.lastToolDetail)}">${escapeHtml(session.lastToolDetail)}</div>` : ""}
+      ${session.lastToolDetail ? `<div class="card-detail" data-tooltip="${escapeHtml(session.lastToolDetail)}">${escapeHtml(session.lastToolDetail)}</div>` : ""}
       <div class="card-feed-label">作業ログ</div>
       <div class="card-feed">${renderFeed(session)}</div>
       <div class="card-footer">
@@ -152,7 +152,7 @@ function renderGrid() {
       <section class="project-group">
         <h2 class="project-group-title">
           <span class="project-group-name">${escapeHtml(g.key)}</span>
-          <span class="project-group-path" title="${escapeHtml(g.cwd)}">${escapeHtml(g.cwd)}</span>
+          <span class="project-group-path" data-tooltip="${escapeHtml(g.cwd)}">${escapeHtml(g.cwd)}</span>
           <span class="project-group-count">${g.items.length}</span>
         </h2>
         <div class="agent-grid">${g.items.map(renderCard).join("")}</div>
@@ -253,7 +253,7 @@ function renderRoles(roles) {
           <div class="role-desc">${escapeHtml(r.description)}</div>
           ${
             latestTurn
-              ? `<div class="role-current" title="${escapeHtml(latestTurn.prompt || "")}">
+              ? `<div class="role-current" data-tooltip="${escapeHtml(latestTurn.prompt || "")}">
                   ${escapeHtml(s.cwd || "")}${s.cwd ? " — " : ""}${latestTurn.prompt ? escapeHtml(latestTurn.prompt) : "(バックグラウンド継続作業)"}
                  </div>`
               : ""
@@ -378,6 +378,44 @@ document.getElementById("gen-report-btn").addEventListener("click", async () => 
   }
 });
 
+// --- Tooltips ---
+// Native `title` tooltips can't be styled (OS-rendered), and cards use
+// overflow:hidden/auto for scrolling, which would clip a CSS-positioned
+// tooltip anchored inside them. So this renders a single shared tooltip as
+// a fixed-position element on <body>, positioned via getBoundingClientRect
+// — outside any clipping ancestor. Delegated on <body> so it keeps working
+// after renderGrid()/renderRoles() replace the DOM underneath it.
+function initTooltips() {
+  const tip = document.createElement("div");
+  tip.className = "fv-tooltip";
+  document.body.appendChild(tip);
+
+  function place(el) {
+    const r = el.getBoundingClientRect();
+    tip.style.display = "block";
+    const tipRect = tip.getBoundingClientRect();
+    let top = r.top - tipRect.height - 8;
+    if (top < 4) top = Math.min(r.bottom + 8, window.innerHeight - tipRect.height - 4);
+    let left = Math.min(r.left, window.innerWidth - tipRect.width - 8);
+    if (left < 4) left = 4;
+    tip.style.top = `${top}px`;
+    tip.style.left = `${left}px`;
+  }
+
+  document.body.addEventListener("mouseover", (e) => {
+    const el = e.target.closest("[data-tooltip]");
+    if (!el) return;
+    const text = el.getAttribute("data-tooltip");
+    if (!text) return;
+    tip.textContent = text;
+    place(el);
+  });
+  document.body.addEventListener("mouseout", (e) => {
+    if (e.target.closest("[data-tooltip]")) tip.style.display = "none";
+  });
+  document.body.addEventListener("scroll", () => { tip.style.display = "none"; }, true);
+}
+
 // --- Init ---
 async function init() {
   const res = await fetch("/api/sessions");
@@ -385,6 +423,7 @@ async function init() {
   for (const s of list) sessions.set(s.id, s);
   renderGrid();
   connectWs();
+  initTooltips();
   setInterval(renderGrid, 15000); // refresh relative timestamps
 }
 
