@@ -121,6 +121,7 @@ function ingest(rawEvent) {
     source,
     reason,
     last_assistant_message: assistantResponse,
+    agent_type: agentType,
   } = rawEvent;
 
   if (!sessionId || !hookName) {
@@ -138,6 +139,7 @@ function ingest(rawEvent) {
       lastTool: null,
       lastToolDetail: null,
       lastMessage: null,
+      agentType: null,
       turns: [],
       eventCount: 0,
       events: [],
@@ -150,6 +152,7 @@ function ingest(rawEvent) {
   session.eventCount += 1;
   session.status = STATUS_BY_HOOK[hookName] ?? session.status;
   if (!session.turns) session.turns = []; // sessions persisted before this field existed
+  if (agentType) session.agentType = agentType;
 
   if (hookName === "PreToolUse") {
     session.lastTool = toolName;
@@ -220,6 +223,14 @@ function getSession(id) {
   return sessions.get(id) ?? null;
 }
 
+function findLatestSessionByAgentType(agentType) {
+  const now = Date.now();
+  const matches = Array.from(sessions.values())
+    .filter((s) => s.agentType === agentType && now - s.updatedAt < SESSION_STALE_MS)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  return matches[0] ?? null;
+}
+
 function readEventsSince(sinceMs) {
   if (!fs.existsSync(EVENTS_LOG)) return [];
   const lines = fs.readFileSync(EVENTS_LOG, "utf-8").split("\n").filter(Boolean);
@@ -237,4 +248,4 @@ function readEventsSince(sinceMs) {
 
 loadState();
 
-export { ingest, listActiveSessions, getSession, readEventsSince, isSystemInjectedPrompt };
+export { ingest, listActiveSessions, getSession, findLatestSessionByAgentType, readEventsSince, isSystemInjectedPrompt };

@@ -4,15 +4,13 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import { ingest, listActiveSessions, getSession } from "./store.js";
+import { ingest, listActiveSessions, getSession, findLatestSessionByAgentType } from "./store.js";
 import { generateAndSave, listReports, readReport } from "./report.js";
 import { listTasks, addTask, setTaskDone, deleteTask } from "./tasks.js";
+import { listRoles, getRole } from "./roles.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.join(__dirname, "..");
-const BACKLOG_AGENT_PROMPT =
-  `${PROJECT_ROOT} ディレクトリで AGENT_INSTRUCTIONS.md の指示に従い、` +
-  `TASKS.md のバックログを1件消化してください。`;
 const PORT = process.env.FLEETVIEW_PORT ? Number(process.env.FLEETVIEW_PORT) : 4317;
 const REPORT_INTERVAL_MIN = process.env.FLEETVIEW_REPORT_INTERVAL_MIN
   ? Number(process.env.FLEETVIEW_REPORT_INTERVAL_MIN)
@@ -20,6 +18,24 @@ const REPORT_INTERVAL_MIN = process.env.FLEETVIEW_REPORT_INTERVAL_MIN
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
+
+// Reject cross-origin state-changing requests (localhost CSRF): with no auth,
+// any webpage the user has open in a browser could otherwise POST to
+// /api/tasks/run — which spawns an auto-approving agent that edits files and
+// commits — just by the user visiting it while this server is running.
+// Browsers always send Origin on state-changing fetch/XHR; non-browser
+// clients (our own hooks script, curl) don't set it and are unaffected.
+const ALLOWED_ORIGINS = new Set([`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`]);
+app.use((req, res, next) => {
+  if (["POST", "PATCH", "DELETE", "PUT"].includes(req.method)) {
+    const origin = req.headers.origin;
+    if (origin && !ALLOWED_ORIGINS.has(origin)) {
+      return res.status(403).json({ error: "forbidden origin" });
+    }
+  }
+  next();
+});
+
 app.use(express.static(path.join(__dirname, "..", "web")));
 
 const server = http.createServer(app);
@@ -107,20 +123,51 @@ app.delete("/api/tasks/:index", (req, res) => {
   }
 });
 
-// Manually trigger the backlog-consuming agent from the dashboard, in lieu of
-// typing the prompt into a terminal. Spawned with --bg so the HTTP request
-// returns immediately; the launched session reports into FleetView through
-// the normal hooks like any other Claude Code session — no separate log
-// viewer needed here.
-app.post("/api/tasks/run", (_req, res) => {
+// Dispatch a role's agent from the dashboard, in lieu of typing the prompt
+// into a terminal. Spawned with --bg so the HTTP request returns immediately;
+// the launched session reports into FleetView through the normal hooks like
+// any other Claude Code session — no separate log viewer needed here.
+// --agent selects the matching .claude/agents/<id>.md persona, and the
+// resulting session's agent_type field is how the org-chart tab finds it.
+function dispatchRole(role) {
+  const child = spawn(
+    "claude",
+    ["--bg", "--permission-mode", "auto", "--agent", role.id, role.prompt],
+    { cwd: PROJECT_ROOT, detached: true, stdio: "ignore" }
+  );
+  child.on("error", (err) => console.error(`[roles/${role.id}] spawn failed:`, err.message));
+  child.unref();
+}
+
+// --- Roles (org chart) ---
+app.get("/api/roles", (_req, res) => {
+  const roles = listRoles().map((r) => {
+    const session = findLatestSessionByAgentType(r.id);
+    return {
+      ...r,
+      session: session
+        ? { id: session.id, status: session.status, updatedAt: session.updatedAt, turns: session.turns }
+        : null,
+    };
+  });
+  res.json(roles);
+});
+
+app.post("/api/roles/:id/run", (req, res) => {
+  const role = getRole(req.params.id);
+  if (!role) return res.status(404).json({ error: "unknown role" });
   try {
-    const child = spawn(
-      "claude",
-      ["--bg", "--permission-mode", "auto", BACKLOG_AGENT_PROMPT],
-      { cwd: PROJECT_ROOT, detached: true, stdio: "ignore" }
-    );
-    child.on("error", (err) => console.error("[tasks/run] spawn failed:", err.message));
-    child.unref();
+    dispatchRole(role);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/tasks/run", (_req, res) => {
+  const role = getRole("engineer");
+  try {
+    dispatchRole(role);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

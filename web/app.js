@@ -202,8 +202,65 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
     if (btn.dataset.tab === "reports") loadReportsList();
     if (btn.dataset.tab === "tasks") loadTasks();
+    if (btn.dataset.tab === "org") loadRoles();
   });
 });
+
+// --- Org chart (role-based agents) ---
+async function loadRoles() {
+  const res = await fetch("/api/roles");
+  const roles = await res.json();
+  renderRoles(roles);
+}
+
+function renderRoles(roles) {
+  const grid = document.getElementById("org-grid");
+  grid.innerHTML = roles
+    .map((r) => {
+      const s = r.session;
+      const status = s ? s.status : "off_duty";
+      const label = s ? STATUS_LABEL[status] || status : "待機中(未起動)";
+      const latestTurn = s?.turns?.length ? s.turns[s.turns.length - 1] : null;
+      const isActive = s && ["running_tool", "thinking", "waiting_input", "compacting"].includes(status);
+      return `
+        <div class="role-card${isActive ? " is-active" : ""}" data-status="${escapeHtml(status)}">
+          <div class="role-head">
+            <span class="role-icon">${r.icon}</span>
+            <span class="role-name">${escapeHtml(r.name)}</span>
+            <span class="badge ${status}">${escapeHtml(label)}</span>
+          </div>
+          <div class="role-desc">${escapeHtml(r.description)}</div>
+          ${
+            latestTurn
+              ? `<div class="role-current" title="${escapeHtml(latestTurn.prompt || "")}">
+                  ${latestTurn.prompt ? escapeHtml(latestTurn.prompt) : "(バックグラウンド継続作業)"}
+                 </div>`
+              : ""
+          }
+          <button type="button" class="role-run-btn" data-role="${r.id}">▶ 起動する</button>
+        </div>`;
+    })
+    .join("");
+
+  grid.querySelectorAll(".role-run-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "起動中…";
+      try {
+        const res = await fetch(`/api/roles/${btn.dataset.role}/run`, { method: "POST" });
+        btn.textContent = res.ok ? "✓ 起動しました" : "起動に失敗しました";
+        if (res.ok) document.querySelector('.tab-btn[data-tab="agents"]').click();
+      } catch {
+        btn.textContent = "起動に失敗しました";
+      } finally {
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = "▶ 起動する";
+        }, 3000);
+      }
+    });
+  });
+}
 
 // --- Tasks (TASKS.md backlog) ---
 async function loadTasks() {
