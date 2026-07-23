@@ -7,6 +7,8 @@ const STATUS_LABEL = {
   ended: "終了",
 };
 
+const ROLE_NAMES = { architect: "アーキテクト", engineer: "エンジニア", reviewer: "レビュアー" };
+
 const sessions = new Map();
 
 function fmtElapsed(ts) {
@@ -234,6 +236,8 @@ document.getElementById("org-browse-btn").addEventListener("click", async () => 
   }
 });
 
+// Role cards are status-only displays now — dispatch happens once, from the
+// shared instruction form below, which auto-routes to whichever role fits.
 function renderRoles(roles) {
   const grid = document.getElementById("org-grid");
   grid.innerHTML = roles
@@ -259,40 +263,45 @@ function renderRoles(roles) {
                  </div>`
               : ""
           }
-          <textarea class="role-instruction" placeholder="${escapeHtml(r.example || "この役割への指示を入力…")}" rows="2"></textarea>
-          <button type="button" class="role-run-btn" data-role="${r.id}">▶ 起動する</button>
         </div>`;
     })
     .join("");
-
-  grid.querySelectorAll(".role-run-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const card = btn.closest(".role-card");
-      const cwd = document.getElementById("org-project-input").value.trim();
-      const instruction = card.querySelector(".role-instruction").value.trim();
-      if (!cwd) { alert("対象プロジェクトのディレクトリを入力してください。"); return; }
-      if (!instruction) { alert("指示内容を入力してください。"); return; }
-      btn.disabled = true;
-      btn.textContent = "起動中…";
-      try {
-        const res = await fetch(`/api/roles/${btn.dataset.role}/run`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ cwd, instruction }),
-        });
-        btn.textContent = res.ok ? "✓ 起動しました" : "起動に失敗しました";
-        if (res.ok) document.querySelector('.tab-btn[data-tab="agents"]').click();
-      } catch {
-        btn.textContent = "起動に失敗しました";
-      } finally {
-        setTimeout(() => {
-          btn.disabled = false;
-          btn.textContent = "▶ 起動する";
-        }, 3000);
-      }
-    });
-  });
 }
+
+document.getElementById("org-dispatch-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("org-dispatch-btn");
+  const cwd = document.getElementById("org-project-input").value.trim();
+  const instructionInput = document.getElementById("org-instruction-input");
+  const instruction = instructionInput.value.trim();
+  if (!cwd) { alert("対象プロジェクトのディレクトリを入力してください。"); return; }
+  if (!instruction) { alert("指示内容を入力してください。"); return; }
+  btn.disabled = true;
+  btn.textContent = "振り分け中…";
+  try {
+    const res = await fetch("/api/roles/dispatch", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cwd, instruction }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      const roleName = ROLE_NAMES[data.roleId] || data.roleId;
+      btn.textContent = `✓ ${roleName}が起動しました`;
+      instructionInput.value = "";
+      document.querySelector('.tab-btn[data-tab="agents"]').click();
+    } else {
+      btn.textContent = "起動に失敗しました";
+    }
+  } catch {
+    btn.textContent = "起動に失敗しました";
+  } finally {
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = "▶ 起動する（自動振り分け）";
+    }, 3000);
+  }
+});
 
 // --- Reports ---
 function mdToHtml(md) {

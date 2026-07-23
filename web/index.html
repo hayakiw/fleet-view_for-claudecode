@@ -33,13 +33,17 @@
   </section>
 
   <section id="tab-org" class="tab-panel">
-    <p class="hint org-hint">役割（ペルソナ）ごとにエージェントを起動できます。プロジェクトと指示を選んで「起動する」を押してください。</p>
+    <p class="hint org-hint">何をしてほしいか書くだけで、内容に応じて適切な役割（アーキテクト/エンジニア/レビュアー）に自動で振り分けて起動します。</p>
     <div class="org-project-bar">
       <label for="org-project-input">対象プロジェクト</label>
       <input id="org-project-input" type="text" list="org-project-list" placeholder="例: C:\Users\hayak\work\myapp" autocomplete="off" />
       <datalist id="org-project-list"></datalist>
       <button type="button" id="org-browse-btn">📁 参照…</button>
     </div>
+    <form id="org-dispatch-form" class="org-dispatch-form">
+      <textarea id="org-instruction-input" placeholder="例: ログイン画面のバリデーションを直して／このコードをレビューして／通知機能の設計を考えて" rows="3"></textarea>
+      <button type="submit" id="org-dispatch-btn">▶ 起動する（自動振り分け）</button>
+    </form>
     <div id="org-grid" class="org-grid"></div>
   </section>
 

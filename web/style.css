@@ -269,12 +269,22 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 }
 #org-browse-btn:hover:not(:disabled) { border-color: var(--accent); }
 #org-browse-btn:disabled { opacity: .7; cursor: default; }
-.role-instruction {
-  background: color-mix(in srgb, var(--surface) 60%, transparent); color: var(--text);
-  border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px;
-  font-family: inherit; resize: vertical; min-height: 40px;
+.org-dispatch-form {
+  display: flex; flex-direction: column; gap: 8px; max-width: 640px; margin-bottom: 20px;
 }
-.role-instruction:focus { outline: none; border-color: var(--accent); }
+.org-dispatch-form textarea {
+  background: color-mix(in srgb, var(--surface) 80%, transparent); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13px;
+  font-family: inherit; resize: vertical; min-height: 64px;
+}
+.org-dispatch-form textarea:focus { outline: none; border-color: var(--accent); }
+#org-dispatch-btn {
+  align-self: flex-start;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: #04070d;
+  border: none; border-radius: 8px; font-weight: 700; padding: 9px 18px; cursor: pointer; font-size: 13px;
+}
+#org-dispatch-btn:hover:not(:disabled) { box-shadow: 0 0 14px 1px color-mix(in srgb, var(--accent-2) 55%, transparent); }
+#org-dispatch-btn:disabled { opacity: .7; cursor: default; }
 .org-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; max-width: 900px;
 }
@@ -299,12 +309,6 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 .role-current.role-current-past {
   color: var(--text-dim); background: color-mix(in srgb, var(--text-dim) 8%, transparent);
 }
-.role-run-btn {
-  margin-top: 4px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: #04070d;
-  border: none; border-radius: 8px; font-weight: 700; padding: 8px 14px; cursor: pointer; font-size: 13px;
-}
-.role-run-btn:hover:not(:disabled) { box-shadow: 0 0 14px 1px color-mix(in srgb, var(--accent-2) 55%, transparent); }
-.role-run-btn:disabled { opacity: .7; cursor: default; }
 .role-card.is-active { animation: card-glow 1.8s ease-in-out infinite; }
 .role-card[data-status="thinking"] { --glow-color: var(--accent); border-color: var(--glow-color); }
 .role-card[data-status="running_tool"] { --glow-color: var(--info); border-color: var(--glow-color); }

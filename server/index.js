@@ -13,7 +13,7 @@ import {
   listKnownProjects,
 } from "./store.js";
 import { generateAndSave, listReports, readReport } from "./report.js";
-import { listRoles, getRole } from "./roles.js";
+import { listRoles, getRole, classifyRole } from "./roles.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.FLEETVIEW_PORT ? Number(process.env.FLEETVIEW_PORT) : 4317;
@@ -156,23 +156,48 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
   });
 });
 
-// Generic dispatch used by the 組織図 tab: any project directory, any
-// free-text instruction.
-app.post("/api/roles/:id/run", (req, res) => {
-  const role = getRole(req.params.id);
-  if (!role) return res.status(404).json({ error: "unknown role" });
+function validateDispatchInput(req, res) {
   const cwd = String(req.body?.cwd ?? "").trim();
   const instruction = String(req.body?.instruction ?? "").trim();
   if (!cwd || !fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) {
-    return res.status(400).json({ error: "cwd must be an existing directory" });
+    res.status(400).json({ error: "cwd must be an existing directory" });
+    return null;
   }
-  if (!instruction) return res.status(400).json({ error: "instruction is required" });
+  if (!instruction) {
+    res.status(400).json({ error: "instruction is required" });
+    return null;
+  }
   if (instruction.startsWith("-")) {
-    return res.status(400).json({ error: "instruction must not start with -" });
+    res.status(400).json({ error: "instruction must not start with -" });
+    return null;
   }
+  return { cwd, instruction };
+}
+
+// Explicit dispatch to a specific role, bypassing auto-routing.
+app.post("/api/roles/:id/run", (req, res) => {
+  const role = getRole(req.params.id);
+  if (!role) return res.status(404).json({ error: "unknown role" });
+  const input = validateDispatchInput(req, res);
+  if (!input) return;
   try {
-    dispatchRole(role.id, cwd, instruction);
-    res.json({ ok: true });
+    dispatchRole(role.id, input.cwd, input.instruction);
+    res.json({ ok: true, roleId: role.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Primary 組織図 flow: one shared instruction box, no role picked by hand —
+// the instruction's wording decides which persona (and its tool
+// restrictions) handles it. See classifyRole() for the routing rules.
+app.post("/api/roles/dispatch", (req, res) => {
+  const input = validateDispatchInput(req, res);
+  if (!input) return;
+  const roleId = classifyRole(input.instruction);
+  try {
+    dispatchRole(roleId, input.cwd, input.instruction);
+    res.json({ ok: true, roleId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

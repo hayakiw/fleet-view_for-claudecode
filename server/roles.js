@@ -10,21 +10,18 @@ const ROLES = [
     name: "アーキテクト",
     icon: "🧭",
     description: "設計・計画を担当。実装はしない",
-    example: "ログイン画面に2段階認証を追加したい。既存の認証まわりの構成を踏まえた設計案をまとめてください",
   },
   {
     id: "engineer",
     name: "エンジニア",
     icon: "🛠️",
     description: "実装・修正・コミットを担当",
-    example: "一覧画面のページネーションが2ページ目以降で件数がずれるバグを直してください",
   },
   {
     id: "reviewer",
     name: "レビュアー",
     icon: "🔍",
     description: "コードレビューを担当。実装はしない",
-    example: "直近のコミットをレビューして、バグやセキュリティ上の懸念があれば指摘してください",
   },
 ];
 
@@ -36,4 +33,22 @@ function getRole(id) {
   return ROLES.find((r) => r.id === id) ?? null;
 }
 
-export { listRoles, getRole };
+// Keyword-based routing so the user writes one instruction and the right
+// persona (and its tool restrictions — reviewer/architect can't Write) gets
+// picked automatically, instead of making them choose a role up front.
+// Checked in order: review-ish wording wins over design-ish wording over
+// the engineer default, since "レビューして直して" should still route to
+// reviewer (report, don't silently fix).
+const ROUTING_KEYWORDS = {
+  reviewer: ["レビュー", "確認して", "チェックして", "問題ないか", "監査", "diffを見て", "指摘"],
+  architect: ["設計", "計画", "プラン", "検討", "提案", "方針", "どう実装すべき"],
+};
+
+function classifyRole(instruction) {
+  for (const [roleId, keywords] of Object.entries(ROUTING_KEYWORDS)) {
+    if (keywords.some((k) => instruction.includes(k))) return roleId;
+  }
+  return "engineer"; // default: most instructions are "do/fix this"
+}
+
+export { listRoles, getRole, classifyRole };
