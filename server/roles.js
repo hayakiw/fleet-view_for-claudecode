@@ -1,9 +1,11 @@
-// Each role maps to a custom agent persona defined at ~/.claude/agents/<id>.md
-// (user-level, not project-local) — so the same "engineer"/"reviewer"/
-// "architect" personas work when dispatched against ANY project directory,
-// not just this one. This registry only holds display metadata; what they
-// actually do each time comes from the free-text instruction the dashboard
-// sends at dispatch time (POST /api/roles/:id/run), not a fixed prompt here.
+// Each role maps to a custom agent persona. The canonical, git-tracked
+// source lives in this repo at .claude/agents/<id>.md (+ paired skills in
+// .claude/skills/), but Claude Code only resolves an agent against the
+// *target* project's cwd — so `npm run sync-agents` copies these to
+// ~/.claude/ (user-level), which is what actually lets the same personas
+// be dispatched against ANY project directory, not just this one. This
+// registry only holds display metadata; what a role actually does each
+// time comes from the free-text instruction sent at dispatch time.
 const ROLES = [
   {
     id: "architect",
