@@ -11,7 +11,7 @@
 ## やること（1回の起動につき1件だけ）
 
 1. `TASKS.md` を読み、上から最初の未完了項目（`- [ ]`）を1つだけ選ぶ。
-2. このリポジトリ（`C:\Users\hayak\work\dojo\agent`）の中だけで実装する。
+2. このリポジトリ（`[作業フォルダのパス]`）の中だけで実装する。
    既存のコード規約に従うこと:
    - バックエンド: `server/` 配下、Node.js + Express + ws。ビルド不要のESM。
    - フロントエンド: `web/` 配下、素のHTML/CSS/JS。ビルドツール・外部CDN禁止（自己完結）。
@@ -24,7 +24,7 @@
      ```
      netstat -ano | grep ":4317" | grep LISTENING   # 現PIDを確認
      taskkill //F //PID <pid>
-     cd C:\Users\hayak\work\dojo\agent && nohup node server/index.js > /tmp/fleetview.log 2>&1 &
+     cd [作業フォルダのパス] && nohup node server/index.js > /tmp/fleetview.log 2>&1 &
      disown
      curl -s http://localhost:4317/api/sessions       # 生存確認
      ```

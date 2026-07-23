@@ -250,6 +250,21 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 .card-feed div { padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-footer { font-size: 10px; color: var(--text-dim); display: flex; justify-content: space-between; font-family: var(--mono); }
 
+.task-run-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 14px; padding: 10px 12px; max-width: 640px;
+  background: color-mix(in srgb, var(--ok) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ok) 25%, transparent); border-radius: 10px;
+}
+.task-run-bar .hint { flex: 1; min-width: 200px; }
+#task-run-btn {
+  background: linear-gradient(90deg, var(--ok), var(--accent-2)); color: #04070d;
+  border: none; border-radius: 8px; font-weight: 700; padding: 9px 16px; cursor: pointer; font-size: 13px;
+  white-space: nowrap; flex: none;
+}
+#task-run-btn:hover:not(:disabled) { box-shadow: 0 0 14px 1px color-mix(in srgb, var(--ok) 55%, transparent); }
+#task-run-btn:disabled { opacity: .7; cursor: default; }
+
 .task-add-form { display: flex; gap: 8px; margin-bottom: 16px; max-width: 640px; }
 .task-add-form input {
   flex: 1; background: color-mix(in srgb, var(--surface) 80%, transparent); color: var(--text);

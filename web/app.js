@@ -263,6 +263,28 @@ document.getElementById("task-add-form").addEventListener("submit", async (e) =>
   loadTasks();
 });
 
+document.getElementById("task-run-btn").addEventListener("click", async () => {
+  const btn = document.getElementById("task-run-btn");
+  btn.disabled = true;
+  btn.textContent = "起動中…";
+  try {
+    const res = await fetch("/api/tasks/run", { method: "POST" });
+    if (res.ok) {
+      btn.textContent = "✓ 起動しました";
+      document.querySelector('.tab-btn[data-tab="agents"]').click();
+    } else {
+      btn.textContent = "起動に失敗しました";
+    }
+  } catch {
+    btn.textContent = "起動に失敗しました";
+  } finally {
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = "▶ 一番上のタスクを実行";
+    }, 3000);
+  }
+});
+
 // --- Reports ---
 function mdToHtml(md) {
   const lines = md.split("\n");

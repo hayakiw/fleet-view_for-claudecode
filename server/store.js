@@ -120,7 +120,7 @@ function ingest(rawEvent) {
     prompt,
     source,
     reason,
-    assistant_response: assistantResponse,
+    last_assistant_message: assistantResponse,
   } = rawEvent;
 
   if (!sessionId || !hookName) {

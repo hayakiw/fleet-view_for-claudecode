@@ -3,11 +3,16 @@ import { WebSocketServer } from "ws";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawn } from "node:child_process";
 import { ingest, listActiveSessions, getSession } from "./store.js";
 import { generateAndSave, listReports, readReport } from "./report.js";
 import { listTasks, addTask, setTaskDone, deleteTask } from "./tasks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.join(__dirname, "..");
+const BACKLOG_AGENT_PROMPT =
+  `${PROJECT_ROOT} ディレクトリで AGENT_INSTRUCTIONS.md の指示に従い、` +
+  `TASKS.md のバックログを1件消化してください。`;
 const PORT = process.env.FLEETVIEW_PORT ? Number(process.env.FLEETVIEW_PORT) : 4317;
 const REPORT_INTERVAL_MIN = process.env.FLEETVIEW_REPORT_INTERVAL_MIN
   ? Number(process.env.FLEETVIEW_REPORT_INTERVAL_MIN)
@@ -99,6 +104,26 @@ app.delete("/api/tasks/:index", (req, res) => {
     res.json(items);
   } catch (err) {
     res.status(404).json({ error: err.message });
+  }
+});
+
+// Manually trigger the backlog-consuming agent from the dashboard, in lieu of
+// typing the prompt into a terminal. Spawned with --bg so the HTTP request
+// returns immediately; the launched session reports into FleetView through
+// the normal hooks like any other Claude Code session — no separate log
+// viewer needed here.
+app.post("/api/tasks/run", (_req, res) => {
+  try {
+    const child = spawn(
+      "claude",
+      ["--bg", "--permission-mode", "auto", BACKLOG_AGENT_PROMPT],
+      { cwd: PROJECT_ROOT, detached: true, stdio: "ignore" }
+    );
+    child.on("error", (err) => console.error("[tasks/run] spawn failed:", err.message));
+    child.unref();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
