@@ -258,7 +258,7 @@ function renderRoles(roles) {
                  </div>`
               : ""
           }
-          <textarea class="role-instruction" placeholder="この役割への指示を入力…" rows="2"></textarea>
+          <textarea class="role-instruction" placeholder="${escapeHtml(r.example || "この役割への指示を入力…")}" rows="2"></textarea>
           <button type="button" class="role-run-btn" data-role="${r.id}">▶ 起動する</button>
         </div>`;
     })
