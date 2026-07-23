@@ -15,7 +15,6 @@
   <nav class="tabs">
     <button class="tab-btn active" data-tab="agents">プロセス</button>
     <button class="tab-btn" data-tab="org">組織図</button>
-    <button class="tab-btn" data-tab="tasks">タスク</button>
     <button class="tab-btn" data-tab="reports">レポート</button>
   </nav>
   <div class="actions">
@@ -39,20 +38,9 @@
       <label for="org-project-input">対象プロジェクト</label>
       <input id="org-project-input" type="text" list="org-project-list" placeholder="例: C:\Users\hayak\work\myapp" autocomplete="off" />
       <datalist id="org-project-list"></datalist>
+      <button type="button" id="org-browse-btn">📁 参照…</button>
     </div>
     <div id="org-grid" class="org-grid"></div>
-  </section>
-
-  <section id="tab-tasks" class="tab-panel">
-    <div class="task-run-bar">
-      <button id="task-run-btn">▶ 一番上のタスクを実行</button>
-      <span class="hint">Claude Codeエージェントをバックグラウンドで起動し、一番上の未完了タスクを1件消化します。実行状況は「プロセス」タブで見られます。</span>
-    </div>
-    <form id="task-add-form" class="task-add-form">
-      <input id="task-add-input" type="text" placeholder="新しいタスクを追加…" autocomplete="off" />
-      <button type="submit">追加</button>
-    </form>
-    <ul id="task-list" class="task-list"></ul>
   </section>
 
   <section id="tab-reports" class="tab-panel">

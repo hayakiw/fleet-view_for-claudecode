@@ -4,7 +4,7 @@ import http from "node:http";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import { spawn } from "node:child_process";
+import { spawn, execFile } from "node:child_process";
 import {
   ingest,
   listActiveSessions,
@@ -13,14 +13,9 @@ import {
   listKnownProjects,
 } from "./store.js";
 import { generateAndSave, listReports, readReport } from "./report.js";
-import { listTasks, addTask, setTaskDone, deleteTask } from "./tasks.js";
 import { listRoles, getRole } from "./roles.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.join(__dirname, "..");
-const BACKLOG_AGENT_PROMPT =
-  `${PROJECT_ROOT} ディレクトリで AGENT_INSTRUCTIONS.md の指示に従い、` +
-  `TASKS.md のバックログを1件消化してください。`;
 const PORT = process.env.FLEETVIEW_PORT ? Number(process.env.FLEETVIEW_PORT) : 4317;
 const REPORT_INTERVAL_MIN = process.env.FLEETVIEW_REPORT_INTERVAL_MIN
   ? Number(process.env.FLEETVIEW_REPORT_INTERVAL_MIN)
@@ -31,8 +26,8 @@ app.use(express.json({ limit: "2mb" }));
 
 // Reject cross-origin state-changing requests (localhost CSRF): with no auth,
 // any webpage the user has open in a browser could otherwise POST to
-// /api/tasks/run — which spawns an auto-approving agent that edits files and
-// commits — just by the user visiting it while this server is running.
+// /api/roles/:id/run — which spawns an auto-approving agent that edits files
+// and commits — just by the user visiting it while this server is running.
 // Browsers always send Origin on state-changing fetch/XHR; non-browser
 // clients (our own hooks script, curl) don't set it and are unaffected.
 const ALLOWED_ORIGINS = new Set([`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`]);
@@ -46,7 +41,10 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static(path.join(__dirname, "..", "web")));
+// This dashboard changes frequently during development; a stale cached
+// app.js/index.html silently running old logic has been a repeat source of
+// "it's not working" confusion. Never cache the GUI files.
+app.use(express.static(path.join(__dirname, "..", "web"), { etag: false, lastModified: false, cacheControl: false, setHeaders: (res) => res.setHeader("Cache-Control", "no-store") }));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
@@ -98,41 +96,6 @@ app.post("/api/reports/generate", (req, res) => {
   res.json({ filename, markdown, title });
 });
 
-// --- Tasks (TASKS.md backlog, editable from the dashboard) ---
-app.get("/api/tasks", (_req, res) => {
-  res.json(listTasks());
-});
-
-app.post("/api/tasks", (req, res) => {
-  try {
-    const items = addTask(String(req.body?.text ?? ""));
-    broadcast("tasks_updated", {});
-    res.json(items);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-app.patch("/api/tasks/:index", (req, res) => {
-  try {
-    const items = setTaskDone(Number(req.params.index), !!req.body?.done);
-    broadcast("tasks_updated", {});
-    res.json(items);
-  } catch (err) {
-    res.status(404).json({ error: err.message });
-  }
-});
-
-app.delete("/api/tasks/:index", (req, res) => {
-  try {
-    const items = deleteTask(Number(req.params.index));
-    broadcast("tasks_updated", {});
-    res.json(items);
-  } catch (err) {
-    res.status(404).json({ error: err.message });
-  }
-});
-
 // Dispatch a role's agent from the dashboard, in lieu of typing the prompt
 // into a terminal. Spawned with --bg so the HTTP request returns immediately;
 // the launched session reports into FleetView through the normal hooks like
@@ -140,10 +103,12 @@ app.delete("/api/tasks/:index", (req, res) => {
 // --agent selects the matching ~/.claude/agents/<id>.md persona (user-level,
 // so it resolves under any project's cwd), and the resulting session's
 // agent_type field is how the org-chart tab finds it again.
+// The "--" sentinel stops claude's own arg parser from treating a prompt
+// that happens to start with "-" as a flag (argv injection).
 function dispatchRole(roleId, cwd, prompt) {
   const child = spawn(
     "claude",
-    ["--bg", "--permission-mode", "auto", "--agent", roleId, prompt],
+    ["--bg", "--permission-mode", "auto", "--agent", roleId, "--", prompt],
     { cwd, detached: true, stdio: "ignore" }
   );
   child.on("error", (err) => console.error(`[roles/${roleId}] spawn failed:`, err.message));
@@ -168,9 +133,31 @@ app.get("/api/projects", (_req, res) => {
   res.json(listKnownProjects());
 });
 
+// A plain <input> can't give us an absolute filesystem path (browsers only
+// expose folder *names*, never real paths, for file/directory pickers) —
+// so instead this asks the Node server, which runs locally with full OS
+// access, to pop a native Windows folder-browse dialog and hand back
+// whatever the user actually picked. Static script, no user input reaches
+// the shell.
+app.post("/api/browse-folder", (_req, res) => {
+  const script = `
+Add-Type -AssemblyName System.Windows.Forms | Out-Null
+$dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+$dialog.Description = 'FleetView: 対象プロジェクトのフォルダを選択'
+$dialog.ShowNewFolderButton = $false
+if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+  Write-Output $dialog.SelectedPath
+}
+`;
+  execFile("powershell.exe", ["-NoProfile", "-Command", script], (err, stdout) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const selected = stdout.trim();
+    res.json({ path: selected || null });
+  });
+});
+
 // Generic dispatch used by the 組織図 tab: any project directory, any
-// free-text instruction. Distinct from /api/tasks/run below, which always
-// targets this project with the fixed TASKS.md-consuming prompt.
+// free-text instruction.
 app.post("/api/roles/:id/run", (req, res) => {
   const role = getRole(req.params.id);
   if (!role) return res.status(404).json({ error: "unknown role" });
@@ -180,17 +167,11 @@ app.post("/api/roles/:id/run", (req, res) => {
     return res.status(400).json({ error: "cwd must be an existing directory" });
   }
   if (!instruction) return res.status(400).json({ error: "instruction is required" });
+  if (instruction.startsWith("-")) {
+    return res.status(400).json({ error: "instruction must not start with -" });
+  }
   try {
     dispatchRole(role.id, cwd, instruction);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post("/api/tasks/run", (_req, res) => {
-  try {
-    dispatchRole("engineer", PROJECT_ROOT, BACKLOG_AGENT_PROMPT);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -201,9 +182,9 @@ wss.on("connection", (ws) => {
   ws.send(JSON.stringify({ type: "snapshot", payload: listActiveSessions() }));
 });
 
-// Bind to localhost only. This server has no auth, and /api/tasks/run spawns
-// an auto-approving (no permission prompts) agent that edits files and
-// commits — listening on 0.0.0.0 would let anyone on the LAN trigger that.
+// Bind to localhost only. This server has no auth, and /api/roles/:id/run
+// spawns an auto-approving (no permission prompts) agent that edits files
+// and commits — listening on 0.0.0.0 would let anyone on the LAN trigger that.
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`FleetView server listening on http://localhost:${PORT}`);
   console.log(`Dashboard:      http://localhost:${PORT}`);
