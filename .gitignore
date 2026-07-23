@@ -1,3 +1,21 @@
 node_modules/
+
+# セッション内容・実行ログ。実際の指示内容や業務データを含みうるため
 data/
 reports/*.md
+
+# 環境変数・秘密情報
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ローカル限定のClaude Code設定（個人の権限設定・パスを含みうる）
+.claude/settings.local.json
+
+# OS/エディタが生成する不要ファイル
+.DS_Store
+Thumbs.db
+*.log
