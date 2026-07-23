@@ -254,7 +254,7 @@ function renderRoles(roles) {
           ${
             latestTurn
               ? `<div class="role-current" data-tooltip="${escapeHtml(latestTurn.prompt || "")}">
-                  ${escapeHtml(s.cwd || "")}${s.cwd ? " — " : ""}${latestTurn.prompt ? escapeHtml(latestTurn.prompt) : "(バックグラウンド継続作業)"}
+                  ${latestTurn.prompt ? escapeHtml(latestTurn.prompt) : "(バックグラウンド継続作業)"}
                  </div>`
               : ""
           }
@@ -427,7 +427,10 @@ function initTooltips() {
   });
   tip.addEventListener("mouseover", cancelHide);
   tip.addEventListener("mouseout", scheduleHide);
-  document.body.addEventListener("scroll", () => { tip.style.display = "none"; }, true);
+  document.body.addEventListener("scroll", (e) => {
+    if (e.target === tip) return; // scrolling inside the tooltip itself shouldn't dismiss it
+    tip.style.display = "none";
+  }, true);
 }
 
 // --- Init ---
