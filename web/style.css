@@ -173,7 +173,7 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
   min-width: 0;
   font-size: 12.5px;
   transition: border-color .2s;
-  height: 300px;
+  height: 320px;
   overflow: hidden;
 }
 
@@ -246,8 +246,12 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 .card-detail {
   font-family: var(--mono); font-size: 11px; color: var(--accent-2);
   background: color-mix(in srgb, var(--accent-2) 8%, var(--surface-3)); border-radius: 6px; padding: 4px 7px;
-  overflow-x: auto; white-space: pre; max-height: 2.6em;
+  overflow-x: auto; overflow-y: auto; white-space: pre; max-height: 4.6em;
+  scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--accent-2) 45%, transparent) transparent;
 }
+.card-detail::-webkit-scrollbar { height: 5px; width: 5px; }
+.card-detail::-webkit-scrollbar-track { background: transparent; }
+.card-detail::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent-2) 45%, transparent); border-radius: 3px; }
 
 .card-feed { max-height: 62px; overflow-y: auto; font-size: 10.5px; color: var(--text-dim); font-family: var(--mono); }
 .card-feed div { padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

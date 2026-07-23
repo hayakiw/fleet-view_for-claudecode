@@ -165,6 +165,15 @@ function ingest(rawEvent) {
   }
   if (hookName === "Notification" && message) {
     session.lastMessage = message;
+    // Background role dispatches (org-chart) have nobody attached to answer
+    // "waiting for input" — Claude Code still fires this Notification once
+    // the session goes idle with no terminal watching. If the latest turn
+    // already has its response, the task is actually done, not stuck
+    // waiting on a human; show it as ended instead of lingering forever.
+    const lastTurn = session.turns[session.turns.length - 1];
+    if (session.agentType && lastTurn?.response) {
+      session.status = "ended";
+    }
   }
   if (hookName === "SessionStart" && source) {
     session.lastMessage = `session start (${source})`;
