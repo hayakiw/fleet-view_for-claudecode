@@ -253,7 +253,8 @@ function renderRoles(roles) {
           <div class="role-desc">${escapeHtml(r.description)}</div>
           ${
             latestTurn
-              ? `<div class="role-current" data-tooltip="${escapeHtml(latestTurn.prompt || "")}">
+              ? `<div class="role-current${isActive ? "" : " role-current-past"}" data-tooltip="${escapeHtml(latestTurn.prompt || "")}">
+                  <span class="role-current-label">${isActive ? "実行中の指示" : `前回の指示（${fmtElapsed(s.updatedAt)}）`}</span>
                   ${latestTurn.prompt ? escapeHtml(latestTurn.prompt) : "(バックグラウンド継続作業)"}
                  </div>`
               : ""
