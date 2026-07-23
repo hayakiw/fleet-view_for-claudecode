@@ -131,7 +131,10 @@ wss.on("connection", (ws) => {
   ws.send(JSON.stringify({ type: "snapshot", payload: listActiveSessions() }));
 });
 
-server.listen(PORT, () => {
+// Bind to localhost only. This server has no auth, and /api/tasks/run spawns
+// an auto-approving (no permission prompts) agent that edits files and
+// commits — listening on 0.0.0.0 would let anyone on the LAN trigger that.
+server.listen(PORT, "127.0.0.1", () => {
   console.log(`FleetView server listening on http://localhost:${PORT}`);
   console.log(`Dashboard:      http://localhost:${PORT}`);
   console.log(`Events API:     POST http://localhost:${PORT}/api/events`);
