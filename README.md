@@ -35,7 +35,7 @@ Claude Code セッションC ─┘                                             
 ## 起動方法
 
 ```
-cd C:\Users\hayak\work\dojo\agent
+cd [作業フォルダのパス]
 npm start
 ```
 
@@ -51,7 +51,7 @@ npm start
 ## Claude Code との接続（hooks）
 
 `~/.claude/settings.json`（グローバル設定）に、以下の8イベントそれぞれについて
-`node "C:\Users\hayak\work\dojo\agent\hooks\report-event.mjs"` を呼び出す
+`node "[作業フォルダのパス]\hooks\report-event.mjs"` を呼び出す
 command hook を追加済みです:
 
 `SessionStart` / `UserPromptSubmit` / `PreToolUse` / `PostToolUse` /
@@ -93,7 +93,7 @@ reports/       生成された定期レポート（Markdown）
 Claude Codeの `/loop` などの機能を使い、都合の良いタイミングで以下のように起動してください:
 
 ```
-C:\Users\hayak\work\dojo\agent ディレクトリで AGENT_INSTRUCTIONS.md の指示に従い、
+[作業フォルダのパス] ディレクトリで AGENT_INSTRUCTIONS.md の指示に従い、
 TASKS.md のバックログを1件消化してください。
 ```
 

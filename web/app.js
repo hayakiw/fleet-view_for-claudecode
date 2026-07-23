@@ -34,8 +34,6 @@ function projectName(cwd) {
   return parts[parts.length - 1] || cwd;
 }
 
-const TASK_HISTORY_SHOWN = 3;
-
 // Each turn pairs a request with the response that answered it, so a reply
 // never appears disconnected from what it was replying to. A turn can have
 // a null prompt (e.g. a background continuation with no captured human
@@ -44,8 +42,7 @@ function renderTaskHistory(session) {
   const turns = session.turns || [];
   if (turns.length === 0) return "";
 
-  const recent = turns.slice(-TASK_HISTORY_SHOWN).reverse(); // newest first
-  const hiddenCount = turns.length - recent.length;
+  const recent = [...turns].reverse(); // newest first; scroll handles overflow, no hard cap
 
   const items = recent
     .map((t, i) => {
@@ -67,8 +64,7 @@ function renderTaskHistory(session) {
   return `
     <div class="card-task">
       <div class="card-task-label">やり取り${turns.length > 1 ? `（${turns.length}件）` : ""}</div>
-      ${items}
-      ${hiddenCount > 0 ? `<div class="task-more">他 ${hiddenCount} 件</div>` : ""}
+      <div class="task-items">${items}</div>
     </div>`;
 }
 
