@@ -393,12 +393,15 @@ document.getElementById("gen-report-btn").addEventListener("click", async () => 
 // overflow:hidden/auto for scrolling, which would clip a CSS-positioned
 // tooltip anchored inside them. So this renders a single shared tooltip as
 // a fixed-position element on <body>, positioned via getBoundingClientRect
-// — outside any clipping ancestor. Delegated on <body> so it keeps working
-// after renderGrid()/renderRoles() replace the DOM underneath it.
+// — outside any clipping ancestor. Click-to-toggle rather than hover: a
+// popup appearing on every mouseover while scanning the dashboard was
+// disruptive. Delegated on <body> so it keeps working after
+// renderGrid()/renderRoles() replace the DOM underneath it.
 function initTooltips() {
   const tip = document.createElement("div");
   tip.className = "fv-tooltip";
   document.body.appendChild(tip);
+  let activeEl = null;
 
   function place(el) {
     const r = el.getBoundingClientRect();
@@ -412,34 +415,31 @@ function initTooltips() {
     tip.style.left = `${left}px`;
   }
 
-  // Hiding is delayed slightly so moving the mouse off the trigger and onto
-  // the tooltip itself (to scroll a long one) doesn't dismiss it first.
-  let hideTimer = null;
-  function scheduleHide() {
-    hideTimer = setTimeout(() => { tip.style.display = "none"; }, 200);
-  }
-  function cancelHide() {
-    if (hideTimer) clearTimeout(hideTimer);
-    hideTimer = null;
+  function hide() {
+    tip.style.display = "none";
+    activeEl = null;
   }
 
-  document.body.addEventListener("mouseover", (e) => {
+  document.body.addEventListener("click", (e) => {
     const el = e.target.closest("[data-tooltip]");
-    if (!el) return;
-    cancelHide();
-    const text = el.getAttribute("data-tooltip");
-    if (!text) return;
-    tip.textContent = text;
-    place(el);
+    if (el) {
+      if (activeEl === el) {
+        hide();
+      } else {
+        const text = el.getAttribute("data-tooltip");
+        if (!text) return;
+        activeEl = el;
+        tip.textContent = text;
+        place(el);
+      }
+      return;
+    }
+    if (tip.contains(e.target)) return; // clicking inside the tooltip (e.g. to select text) shouldn't close it
+    hide();
   });
-  document.body.addEventListener("mouseout", (e) => {
-    if (e.target.closest("[data-tooltip]") || e.target === tip) scheduleHide();
-  });
-  tip.addEventListener("mouseover", cancelHide);
-  tip.addEventListener("mouseout", scheduleHide);
   document.body.addEventListener("scroll", (e) => {
     if (e.target === tip) return; // scrolling inside the tooltip itself shouldn't dismiss it
-    tip.style.display = "none";
+    hide();
   }, true);
 }
 

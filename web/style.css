@@ -254,7 +254,7 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 .card-detail::-webkit-scrollbar-track { background: transparent; }
 .card-detail::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent-2) 45%, transparent); border-radius: 3px; }
 
-.card-feed { max-height: 62px; overflow-y: auto; font-size: 10.5px; color: var(--text-dim); font-family: var(--mono); }
+.card-feed { min-height: 62px; max-height: 62px; flex-shrink: 0; overflow-y: auto; font-size: 10.5px; color: var(--text-dim); font-family: var(--mono); }
 .card-feed div { padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-footer { font-size: 10px; color: var(--text-dim); display: flex; justify-content: space-between; font-family: var(--mono); flex-shrink: 0; }
 
@@ -351,7 +351,7 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 .report-view code { font-family: var(--mono); background: var(--surface-3); color: var(--accent-2); padding: 1px 5px; border-radius: 4px; }
 .report-view li { margin: 4px 0; }
 
-[data-tooltip] { cursor: help; }
+[data-tooltip] { cursor: pointer; }
 .fv-tooltip {
   display: none;
   position: fixed;
