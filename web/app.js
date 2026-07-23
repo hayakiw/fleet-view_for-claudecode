@@ -402,17 +402,31 @@ function initTooltips() {
     tip.style.left = `${left}px`;
   }
 
+  // Hiding is delayed slightly so moving the mouse off the trigger and onto
+  // the tooltip itself (to scroll a long one) doesn't dismiss it first.
+  let hideTimer = null;
+  function scheduleHide() {
+    hideTimer = setTimeout(() => { tip.style.display = "none"; }, 200);
+  }
+  function cancelHide() {
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = null;
+  }
+
   document.body.addEventListener("mouseover", (e) => {
     const el = e.target.closest("[data-tooltip]");
     if (!el) return;
+    cancelHide();
     const text = el.getAttribute("data-tooltip");
     if (!text) return;
     tip.textContent = text;
     place(el);
   });
   document.body.addEventListener("mouseout", (e) => {
-    if (e.target.closest("[data-tooltip]")) tip.style.display = "none";
+    if (e.target.closest("[data-tooltip]") || e.target === tip) scheduleHide();
   });
+  tip.addEventListener("mouseover", cancelHide);
+  tip.addEventListener("mouseout", scheduleHide);
   document.body.addEventListener("scroll", () => { tip.style.display = "none"; }, true);
 }
 
