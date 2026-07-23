@@ -250,6 +250,34 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 .card-feed div { padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-footer { font-size: 10px; color: var(--text-dim); display: flex; justify-content: space-between; font-family: var(--mono); }
 
+.task-add-form { display: flex; gap: 8px; margin-bottom: 16px; max-width: 640px; }
+.task-add-form input {
+  flex: 1; background: color-mix(in srgb, var(--surface) 80%, transparent); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 13px;
+}
+.task-add-form input:focus { outline: none; border-color: var(--accent); }
+.task-add-form button {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: #04070d;
+  border: none; border-radius: 8px; font-weight: 700; padding: 9px 16px; cursor: pointer; font-size: 13px;
+}
+.task-add-form button:hover { box-shadow: 0 0 14px 1px color-mix(in srgb, var(--accent-2) 55%, transparent); }
+
+.task-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-width: 640px; }
+.task-row-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent); backdrop-filter: blur(6px);
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+}
+.task-row-item.done { opacity: .5; }
+.task-row-item.done .task-list-text { text-decoration: line-through; }
+.task-checkbox { margin-top: 2px; accent-color: var(--accent); flex: none; cursor: pointer; }
+.task-list-text { flex: 1; font-size: 13px; line-height: 1.5; }
+.task-delete {
+  background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px;
+  flex: none; padding: 0 2px; border-radius: 4px;
+}
+.task-delete:hover { color: var(--danger); }
+
 .reports-layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
 .reports-list {
   background: color-mix(in srgb, var(--surface) 80%, transparent); backdrop-filter: blur(6px);

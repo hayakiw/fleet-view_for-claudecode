@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ingest, listActiveSessions, getSession } from "./store.js";
 import { generateAndSave, listReports, readReport } from "./report.js";
+import { listTasks, addTask, setTaskDone, deleteTask } from "./tasks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.FLEETVIEW_PORT ? Number(process.env.FLEETVIEW_PORT) : 4317;
@@ -64,6 +65,41 @@ app.post("/api/reports/generate", (req, res) => {
   const { filename, markdown, title } = generateAndSave(periodMs);
   broadcast("report_generated", { filename });
   res.json({ filename, markdown, title });
+});
+
+// --- Tasks (TASKS.md backlog, editable from the dashboard) ---
+app.get("/api/tasks", (_req, res) => {
+  res.json(listTasks());
+});
+
+app.post("/api/tasks", (req, res) => {
+  try {
+    const items = addTask(String(req.body?.text ?? ""));
+    broadcast("tasks_updated", {});
+    res.json(items);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.patch("/api/tasks/:index", (req, res) => {
+  try {
+    const items = setTaskDone(Number(req.params.index), !!req.body?.done);
+    broadcast("tasks_updated", {});
+    res.json(items);
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.delete("/api/tasks/:index", (req, res) => {
+  try {
+    const items = deleteTask(Number(req.params.index));
+    broadcast("tasks_updated", {});
+    res.json(items);
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
 });
 
 wss.on("connection", (ws) => {

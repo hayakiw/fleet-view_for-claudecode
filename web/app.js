@@ -187,6 +187,8 @@ function connectWs() {
       upsertSession(msg.payload);
     } else if (msg.type === "report_generated") {
       loadReportsList();
+    } else if (msg.type === "tasks_updated") {
+      loadTasks();
     }
   };
 }
@@ -199,7 +201,66 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.classList.add("active");
     document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
     if (btn.dataset.tab === "reports") loadReportsList();
+    if (btn.dataset.tab === "tasks") loadTasks();
   });
+});
+
+// --- Tasks (TASKS.md backlog) ---
+async function loadTasks() {
+  const res = await fetch("/api/tasks");
+  const items = await res.json();
+  renderTasks(items);
+}
+
+function renderTasks(items) {
+  const list = document.getElementById("task-list");
+  if (items.length === 0) {
+    list.innerHTML = '<p class="hint">タスクはまだありません。上のフォームから追加してください。</p>';
+    return;
+  }
+  list.innerHTML = items
+    .map(
+      (t) => `
+      <li class="task-row-item${t.done ? " done" : ""}" data-index="${t.index}">
+        <input type="checkbox" class="task-checkbox" ${t.done ? "checked" : ""} />
+        <span class="task-list-text">${escapeHtml(t.text)}</span>
+        <button type="button" class="task-delete" title="削除">✕</button>
+      </li>`
+    )
+    .join("");
+
+  list.querySelectorAll(".task-checkbox").forEach((cb) => {
+    cb.addEventListener("change", async (e) => {
+      const index = e.target.closest(".task-row-item").dataset.index;
+      await fetch(`/api/tasks/${index}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ done: e.target.checked }),
+      });
+      loadTasks();
+    });
+  });
+  list.querySelectorAll(".task-delete").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const index = e.target.closest(".task-row-item").dataset.index;
+      await fetch(`/api/tasks/${index}`, { method: "DELETE" });
+      loadTasks();
+    });
+  });
+}
+
+document.getElementById("task-add-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = document.getElementById("task-add-input");
+  const text = input.value.trim();
+  if (!text) return;
+  await fetch("/api/tasks", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  input.value = "";
+  loadTasks();
 });
 
 // --- Reports ---
