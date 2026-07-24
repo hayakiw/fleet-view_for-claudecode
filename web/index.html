@@ -39,12 +39,18 @@
         <span class="org-instruct-toggle-chevron" aria-hidden="true">▾</span>
       </button>
       <div class="org-instruct-body" id="org-instruct-body">
-        <p class="hint org-hint">何をしてほしいか書くだけで、内容に応じて適切な役割（開発: アーキテクト/エンジニア/レビュアー(セキュリティ含む)/機能提案、営業: リサーチャー/プレゼンター/議事録、デザイン: LP/システム）に自動で振り分けて起動します。</p>
+        <div class="org-mode-toggle" id="org-mode-toggle" role="tablist">
+          <button type="button" class="org-mode-btn active" data-mode="instruct" role="tab" aria-selected="true">📝 指示</button>
+          <button type="button" class="org-mode-btn" data-mode="goal" role="tab" aria-selected="false">🎯 目標</button>
+        </div>
+        <p class="hint org-hint" id="org-mode-hint">何をしてほしいか書くだけで、内容に応じて適切な役割（開発: アーキテクト/エンジニア/レビュアー(セキュリティ含む)/機能提案、営業: リサーチャー/プレゼンター/議事録、デザイン: LP/システム）に自動で振り分けて起動します。</p>
         <div class="org-project-bar">
-          <label for="org-project-input">対象プロジェクト</label>
-          <input id="org-project-input" type="text" list="org-project-list" placeholder="例: C:\Users\hayak\work\myapp" autocomplete="off" />
-          <datalist id="org-project-list"></datalist>
-          <button type="button" id="org-browse-btn">📁 参照…</button>
+          <label for="org-project-select">対象プロジェクト</label>
+          <select id="org-project-select">
+            <option value="">選択してください…</option>
+          </select>
+          <button type="button" id="org-project-add-btn" title="フォルダを選んで対象プロジェクトとして保存">＋ 追加</button>
+          <button type="button" id="org-project-remove-btn" title="選択中の対象プロジェクトを削除">🗑</button>
         </div>
         <form id="org-dispatch-form" class="org-dispatch-form">
           <div class="org-composer">

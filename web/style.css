@@ -278,22 +278,36 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 .org-instruct-body { margin-top: 14px; }
 .org-instruct-panel.collapsed .org-instruct-toggle-chevron { transform: rotate(-90deg); }
 .org-instruct-panel.collapsed .org-instruct-body { display: none; }
+.org-mode-toggle {
+  display: inline-flex; gap: 2px; padding: 3px; margin-bottom: 12px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.org-mode-btn {
+  background: transparent; border: none; color: var(--text-dim); cursor: pointer;
+  font-family: inherit; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 7px;
+  transition: background .15s, color .15s;
+}
+.org-mode-btn:hover { color: var(--text); }
+.org-mode-btn.active {
+  background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--text);
+}
 .org-hint { margin-bottom: 14px; }
 .org-project-bar {
   display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
 }
 .org-project-bar label { font-size: 12px; color: var(--text-dim); flex: none; }
-.org-project-bar input {
+.org-project-bar select {
   flex: 1; min-width: 240px; background: color-mix(in srgb, var(--surface) 80%, transparent); color: var(--text);
   border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 13px; font-family: var(--mono);
 }
-.org-project-bar input:focus { outline: none; border-color: var(--accent); }
-#org-browse-btn {
+.org-project-bar select:focus { outline: none; border-color: var(--accent); }
+#org-project-add-btn, #org-project-remove-btn {
   background: var(--surface-3); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
   padding: 9px 14px; cursor: pointer; font-size: 13px; white-space: nowrap; flex: none;
 }
-#org-browse-btn:hover:not(:disabled) { border-color: var(--accent); }
-#org-browse-btn:disabled { opacity: .7; cursor: default; }
+#org-project-add-btn:hover:not(:disabled), #org-project-remove-btn:hover:not(:disabled) { border-color: var(--accent); }
+#org-project-add-btn:disabled, #org-project-remove-btn:disabled { opacity: .7; cursor: default; }
 .org-dispatch-form {
   display: flex; flex-direction: column; gap: 6px;
 }

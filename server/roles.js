@@ -10,6 +10,14 @@
 // order, so listing 営業 before 開発 is what puts 営業 on the left.
 const ROLES = [
   {
+    id: "manager",
+    name: "マネージャー",
+    icon: "🎯",
+    description: "目標を具体的な指示に分解し、各役割へ振り分ける調整役",
+    team: "経営",
+    skill: "goal-decomposition",
+  },
+  {
     id: "researcher",
     name: "リサーチャー",
     icon: "🌐",

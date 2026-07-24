@@ -163,8 +163,41 @@ function renderGrid() {
     .join("");
 }
 
+// The server drops "ended" sessions from what it serves after ENDED_STALE_MS
+// (server/store.js), but that filtering only applies when a fresh snapshot
+// is fetched (page load / WS reconnect) — an already-open tab just keeps
+// accumulating session_update messages into `sessions` forever, with nothing
+// telling it to remove one. Mirror the same threshold here so an ended
+// card actually disappears on its own instead of only clearing on reload.
+const ENDED_STALE_MS = 1000 * 60 * 5;
+const endedRemovalTimers = new Map(); // sessionId -> timeout handle
+
+function scheduleEndedRemoval(session) {
+  const existing = endedRemovalTimers.get(session.id);
+  if (existing) clearTimeout(existing);
+  const delay = Math.max(0, ENDED_STALE_MS - (Date.now() - session.updatedAt));
+  endedRemovalTimers.set(
+    session.id,
+    setTimeout(() => {
+      sessions.delete(session.id);
+      endedRemovalTimers.delete(session.id);
+      renderGrid();
+    }, delay)
+  );
+}
+
+function cancelEndedRemoval(sessionId) {
+  const existing = endedRemovalTimers.get(sessionId);
+  if (existing) {
+    clearTimeout(existing);
+    endedRemovalTimers.delete(sessionId);
+  }
+}
+
 function upsertSession(s) {
   sessions.set(s.id, s);
+  if (s.status === "ended") scheduleEndedRemoval(s);
+  else cancelEndedRemoval(s.id); // e.g. a resumed session moving off "ended"
   renderGrid();
 }
 
@@ -197,7 +230,10 @@ function connectWs() {
   ws.onmessage = (evt) => {
     const msg = JSON.parse(evt.data);
     if (msg.type === "snapshot") {
-      for (const s of msg.payload) sessions.set(s.id, s);
+      for (const s of msg.payload) {
+        sessions.set(s.id, s);
+        if (s.status === "ended") scheduleEndedRemoval(s);
+      }
       renderGrid();
       scheduleOrgRefresh();
     } else if (msg.type === "session_update") {
@@ -240,33 +276,70 @@ orgInstructToggle.addEventListener("click", () => {
   localStorage.setItem(ORG_INSTRUCT_COLLAPSED_KEY, collapsed ? "1" : "0");
 });
 
-async function loadProjectList() {
-  const res = await fetch("/api/projects");
+// Saved target projects (組織図 dispatch panel): a small user-curated list —
+// add once via folder-browse, then just pick from the dropdown at dispatch
+// time instead of typing/browsing a path every time.
+const orgProjectSelect = document.getElementById("org-project-select");
+
+async function loadSavedProjects(selectPath) {
+  const res = await fetch("/api/saved-projects");
   const projects = await res.json();
-  const datalist = document.getElementById("org-project-list");
-  datalist.innerHTML = projects.map((p) => `<option value="${escapeHtml(p)}"></option>`).join("");
+  const toSelect = selectPath ?? orgProjectSelect.value;
+  orgProjectSelect.innerHTML =
+    `<option value="">選択してください…</option>` +
+    projects
+      .map((p) => `<option value="${escapeHtml(p.path)}">${escapeHtml(p.name)} — ${escapeHtml(p.path)}</option>`)
+      .join("");
+  if (toSelect && projects.some((p) => p.path === toSelect)) orgProjectSelect.value = toSelect;
 }
 
 async function loadRoles() {
-  loadProjectList();
+  loadSavedProjects();
   const res = await fetch("/api/roles");
   const roles = await res.json();
   renderRoles(roles);
 }
 
-document.getElementById("org-browse-btn").addEventListener("click", async () => {
-  const btn = document.getElementById("org-browse-btn");
+document.getElementById("org-project-add-btn").addEventListener("click", async () => {
+  const btn = document.getElementById("org-project-add-btn");
   btn.disabled = true;
   btn.textContent = "選択中…";
   try {
     const res = await fetch("/api/browse-folder", { method: "POST" });
     const data = await res.json();
-    if (data.path) document.getElementById("org-project-input").value = data.path;
+    if (!data.path) return; // user cancelled the folder picker
+    const defaultName = data.path.split(/[\\/]/).filter(Boolean).pop() || data.path;
+    const name = prompt("この対象プロジェクトの名前を入力してください:", defaultName);
+    if (!name || !name.trim()) return; // user cancelled the name prompt
+    const saveRes = await fetch("/api/saved-projects", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), path: data.path }),
+    });
+    if (!saveRes.ok) throw new Error("save failed");
+    await loadSavedProjects(data.path);
   } catch {
-    alert("フォルダ選択に失敗しました。");
+    alert("対象プロジェクトの保存に失敗しました。");
   } finally {
     btn.disabled = false;
-    btn.textContent = "📁 参照…";
+    btn.textContent = "＋ 追加";
+  }
+});
+
+document.getElementById("org-project-remove-btn").addEventListener("click", async () => {
+  const path = orgProjectSelect.value;
+  if (!path) { alert("削除する対象プロジェクトを選択してください。"); return; }
+  const label = orgProjectSelect.options[orgProjectSelect.selectedIndex].textContent;
+  if (!confirm(`「${label}」を対象プロジェクトの一覧から削除しますか？`)) return;
+  try {
+    await fetch("/api/saved-projects", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path }),
+    });
+    await loadSavedProjects();
+  } catch {
+    alert("削除に失敗しました。");
   }
 });
 
@@ -337,19 +410,51 @@ orgInstructionInput.addEventListener("input", () => {
   orgInstructionInput.style.height = `${orgInstructionInput.scrollHeight}px`;
 });
 
+// Two dispatch modes share the same composer:
+// - "instruct" (default): one concrete task, auto-routed to a single role
+//   via /api/roles/dispatch (classifyRole keyword matching).
+// - "goal": a higher-level objective that may span multiple roles. Sent
+//   straight to the "manager" role (bypassing classifyRole via
+//   /api/roles/:id/run), whose job is to break it into concrete instructions
+//   and dispatch each one itself.
+const ORG_MODES = {
+  instruct: {
+    hint: "何をしてほしいか書くだけで、内容に応じて適切な役割（開発: アーキテクト/エンジニア/レビュアー(セキュリティ含む)/機能提案、営業: リサーチャー/プレゼンター/議事録、デザイン: LP/システム）に自動で振り分けて起動します。",
+    placeholder: "例: ログイン画面のバリデーションを直して／このコードをレビューして／通知機能の設計を考えて",
+  },
+  goal: {
+    hint: "達成したい目標を書くと、マネージャーがタスクに分解して各役割へ振り分けます（複数の役割にまたがる依頼向け）。",
+    placeholder: "例: もっと使いやすくして／セキュリティを高めたい／新規登録の離脱を減らしたい",
+  },
+};
+let orgMode = "instruct";
+document.getElementById("org-mode-toggle").addEventListener("click", (e) => {
+  const btn = e.target.closest(".org-mode-btn");
+  if (!btn) return;
+  orgMode = btn.dataset.mode;
+  document.querySelectorAll(".org-mode-btn").forEach((b) => {
+    const active = b === btn;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  document.getElementById("org-mode-hint").textContent = ORG_MODES[orgMode].hint;
+  orgInstructionInput.placeholder = ORG_MODES[orgMode].placeholder;
+});
+
 document.getElementById("org-dispatch-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = document.getElementById("org-dispatch-btn");
   const status = document.getElementById("org-dispatch-status");
-  const cwd = document.getElementById("org-project-input").value.trim();
+  const cwd = orgProjectSelect.value;
   const instruction = orgInstructionInput.value.trim();
-  if (!cwd) { alert("対象プロジェクトのディレクトリを入力してください。"); return; }
-  if (!instruction) { alert("指示内容を入力してください。"); return; }
+  if (!cwd) { alert("対象プロジェクトを選択してください。"); return; }
+  if (!instruction) { alert(orgMode === "goal" ? "目標を入力してください。" : "指示内容を入力してください。"); return; }
   btn.disabled = true;
   status.className = "org-dispatch-status";
-  status.textContent = "振り分け中…";
+  status.textContent = orgMode === "goal" ? "マネージャーに伝えています…" : "振り分け中…";
   try {
-    const res = await fetch("/api/roles/dispatch", {
+    const url = orgMode === "goal" ? "/api/roles/manager/run" : "/api/roles/dispatch";
+    const res = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ cwd, instruction }),
@@ -358,7 +463,8 @@ document.getElementById("org-dispatch-form").addEventListener("submit", async (e
     if (res.ok) {
       const roleName = roleCache[data.roleId]?.name || data.roleId;
       status.className = "org-dispatch-status is-success";
-      status.textContent = `✓ ${roleName}が起動しました`;
+      status.textContent =
+        orgMode === "goal" ? `✓ ${roleName}に目標を伝えました` : `✓ ${roleName}が起動しました`;
       orgInstructionInput.value = "";
       orgInstructionInput.style.height = "auto";
       document.querySelector('.tab-btn[data-tab="agents"]').click();

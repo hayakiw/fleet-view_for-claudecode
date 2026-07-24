@@ -14,6 +14,7 @@ import {
 } from "./store.js";
 import { generateAndSave, listReports, readReport, deleteReport } from "./report.js";
 import { listRoles, getRole, classifyRole } from "./roles.js";
+import { listSavedProjects, addSavedProject, removeSavedProject } from "./projects.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.FLEETVIEW_PORT ? Number(process.env.FLEETVIEW_PORT) : 4317;
@@ -146,14 +147,25 @@ app.get("/api/projects", (_req, res) => {
 // access, to pop a native Windows folder-browse dialog and hand back
 // whatever the user actually picked. Static script, no user input reaches
 // the shell.
+//
+// This deliberately uses OpenFileDialog (tricked into folder-picking mode
+// via ValidateNames/CheckFileExists=false + a placeholder FileName) rather
+// than System.Windows.Forms.FolderBrowserDialog. FolderBrowserDialog under
+// PowerShell's (.NET Framework) WinForms renders the old Windows XP-era
+// tree browser with no address bar — no typing or pasting a path directly.
+// OpenFileDialog uses the modern Explorer-style common item dialog, which
+// has the same address bar / breadcrumb as a normal Explorer window.
 app.post("/api/browse-folder", (_req, res) => {
   const script = `
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
-$dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-$dialog.Description = 'FleetView: 対象プロジェクトのフォルダを選択'
-$dialog.ShowNewFolderButton = $false
+$dialog = New-Object System.Windows.Forms.OpenFileDialog
+$dialog.Title = 'FleetView: 対象プロジェクトのフォルダを選択'
+$dialog.ValidateNames = $false
+$dialog.CheckFileExists = $false
+$dialog.CheckPathExists = $true
+$dialog.FileName = 'このフォルダを選択'
 if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-  Write-Output $dialog.SelectedPath
+  Write-Output (Split-Path -Path $dialog.FileName -Parent)
 }
 `;
   execFile("powershell.exe", ["-NoProfile", "-Command", script], (err, stdout) => {
@@ -161,6 +173,27 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
     const selected = stdout.trim();
     res.json({ path: selected || null });
   });
+});
+
+// --- Saved target projects (組織図 dispatch panel dropdown) ---
+app.get("/api/saved-projects", (_req, res) => {
+  res.json(listSavedProjects());
+});
+
+app.post("/api/saved-projects", (req, res) => {
+  const cwd = String(req.body?.path ?? "").trim();
+  const name = String(req.body?.name ?? "").trim();
+  if (!cwd || !fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) {
+    return res.status(400).json({ error: "path must be an existing directory" });
+  }
+  if (!name) return res.status(400).json({ error: "name is required" });
+  res.json(addSavedProject(name, cwd));
+});
+
+app.delete("/api/saved-projects", (req, res) => {
+  const cwd = String(req.body?.path ?? "").trim();
+  if (!cwd) return res.status(400).json({ error: "path is required" });
+  res.json(removeSavedProject(cwd));
 });
 
 function validateDispatchInput(req, res) {
