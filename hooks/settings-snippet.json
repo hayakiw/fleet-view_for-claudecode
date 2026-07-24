@@ -12,7 +12,8 @@
       {
         "matcher": "",
         "hooks": [
-          { "type": "command", "command": "node \"C:\\Users\\hayak\\work\\dojo\\agent\\hooks\\report-event.mjs\"" }
+          { "type": "command", "command": "node \"C:\\Users\\hayak\\work\\dojo\\agent\\hooks\\report-event.mjs\"" },
+          { "type": "command", "command": "node \"C:\\Users\\hayak\\work\\dojo\\agent\\hooks\\suggest-role.mjs\"" }
         ]
       }
     ],

@@ -15,6 +15,7 @@ const ROLES = [
     icon: "🌐",
     description: "Web調査・情報収集を行い、根拠となる調査メモをまとめる担当",
     team: "営業",
+    skill: "web-research",
   },
   {
     id: "presenter",
@@ -22,6 +23,7 @@ const ROLES = [
     icon: "📊",
     description: "調査結果をもとにスライド資料を作成する担当",
     team: "営業",
+    skill: "slide-deck-authoring",
   },
   {
     id: "minutes",
@@ -29,6 +31,7 @@ const ROLES = [
     icon: "📋",
     description: "メモ書きから議事録を作成する担当",
     team: "営業",
+    skill: "meeting-minutes",
   },
   {
     id: "architect",
@@ -36,6 +39,7 @@ const ROLES = [
     icon: "🧭",
     description: "設計・計画を担当",
     team: "開発",
+    skill: "feature-design-doc",
   },
   {
     id: "engineer",
@@ -43,6 +47,7 @@ const ROLES = [
     icon: "🛠️",
     description: "実装・修正・コミットを担当",
     team: "開発",
+    skill: "implementation-workflow",
   },
   {
     id: "reviewer",
@@ -50,6 +55,7 @@ const ROLES = [
     icon: "🔍",
     description: "コードレビューを担当",
     team: "開発",
+    skill: "code-review-checklist",
   },
   {
     id: "feature-proposal",
@@ -57,6 +63,7 @@ const ROLES = [
     icon: "💡",
     description: "プロダクトをより便利にする新機能を提案する担当",
     team: "開発",
+    skill: "feature-ideation",
   },
   {
     id: "lp-designer",
@@ -64,6 +71,7 @@ const ROLES = [
     icon: "🎨",
     description: "LP（ランディングページ）のデザイン・実装を担当。HTML/CSSで作成する",
     team: "デザイン",
+    skill: "lp-design",
   },
   {
     id: "system-designer",
@@ -71,6 +79,7 @@ const ROLES = [
     icon: "🖥️",
     description: "プロダクト・システム画面のデザイン・実装を担当。HTML/CSSで作成する",
     team: "デザイン",
+    skill: "system-ui-design",
   },
 ];
 
