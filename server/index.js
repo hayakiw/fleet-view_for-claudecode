@@ -12,7 +12,7 @@ import {
   findLatestSessionByAgentType,
   listKnownProjects,
 } from "./store.js";
-import { generateAndSave, listReports, readReport } from "./report.js";
+import { generateAndSave, listReports, readReport, deleteReport } from "./report.js";
 import { listRoles, getRole, classifyRole } from "./roles.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -94,6 +94,13 @@ app.post("/api/reports/generate", (req, res) => {
   const { filename, markdown, title } = generateAndSave(periodMs);
   broadcast("report_generated", { filename });
   res.json({ filename, markdown, title });
+});
+
+app.delete("/api/reports/:filename", (req, res) => {
+  const ok = deleteReport(req.params.filename);
+  if (!ok) return res.status(404).json({ error: "not found" });
+  broadcast("report_deleted", { filename: path.basename(req.params.filename) });
+  res.json({ ok: true });
 });
 
 // Dispatch a role's agent from the dashboard, in lieu of typing the prompt

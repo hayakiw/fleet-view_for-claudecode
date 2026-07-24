@@ -24,6 +24,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-x: hidden; /* wide content (org chart, tables, code) scrolls inside its own container instead */
   color: var(--text);
   font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", sans-serif;
   background:
@@ -258,9 +259,28 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 .card-feed div { padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-footer { font-size: 10px; color: var(--text-dim); display: flex; justify-content: space-between; font-family: var(--mono); flex-shrink: 0; }
 
-.org-hint { margin-bottom: 10px; }
+/* A visually distinct, centered panel for "what should be done" — the
+   entry point to the whole org chart — so it reads as the one place to
+   type an instruction rather than blending into the page. */
+.org-instruct-panel {
+  max-width: 680px; margin: 0 auto 28px; padding: 18px 20px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 14%, var(--surface-2)), var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 16px;
+  box-shadow: 0 0 24px -8px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.org-instruct-toggle {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  background: transparent; border: none; color: var(--text); cursor: pointer;
+  font-family: inherit; font-weight: 700; font-size: 14px; padding: 0;
+}
+.org-instruct-toggle-chevron { color: var(--text-dim); transition: transform .2s; }
+.org-instruct-body { margin-top: 14px; }
+.org-instruct-panel.collapsed .org-instruct-toggle-chevron { transform: rotate(-90deg); }
+.org-instruct-panel.collapsed .org-instruct-body { display: none; }
+.org-hint { margin-bottom: 14px; }
 .org-project-bar {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 16px; max-width: 640px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
 }
 .org-project-bar label { font-size: 12px; color: var(--text-dim); flex: none; }
 .org-project-bar input {
@@ -275,24 +295,93 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 #org-browse-btn:hover:not(:disabled) { border-color: var(--accent); }
 #org-browse-btn:disabled { opacity: .7; cursor: default; }
 .org-dispatch-form {
-  display: flex; flex-direction: column; gap: 8px; max-width: 640px; margin-bottom: 20px;
+  display: flex; flex-direction: column; gap: 6px;
 }
-.org-dispatch-form textarea {
-  background: color-mix(in srgb, var(--surface) 80%, transparent); color: var(--text);
-  border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13px;
-  font-family: inherit; resize: vertical; min-height: 64px;
+.org-composer {
+  display: flex; align-items: flex-end; gap: 8px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  border: 1px solid var(--border); border-radius: 22px; padding: 8px 8px 8px 18px;
+  transition: border-color .15s;
 }
-.org-dispatch-form textarea:focus { outline: none; border-color: var(--accent); }
+.org-composer:focus-within { border-color: var(--accent); }
+.org-composer textarea {
+  flex: 1; min-width: 0; background: transparent; color: var(--text); border: none; outline: none;
+  padding: 7px 0; font-size: 13px; font-family: inherit; resize: none;
+  min-height: 20px; max-height: 160px; line-height: 1.5; overflow-y: auto;
+}
 #org-dispatch-btn {
-  align-self: flex-start;
+  flex: none; width: 34px; height: 34px; align-self: flex-end;
+  display: flex; align-items: center; justify-content: center;
   background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: #04070d;
-  border: none; border-radius: 8px; font-weight: 700; padding: 9px 18px; cursor: pointer; font-size: 13px;
+  border: none; border-radius: 50%; font-size: 15px; line-height: 1; cursor: pointer;
+  transition: box-shadow .15s, opacity .15s;
 }
 #org-dispatch-btn:hover:not(:disabled) { box-shadow: 0 0 14px 1px color-mix(in srgb, var(--accent-2) 55%, transparent); }
-#org-dispatch-btn:disabled { opacity: .7; cursor: default; }
-.org-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; max-width: 900px;
+#org-dispatch-btn:disabled { opacity: .45; cursor: default; box-shadow: none; }
+.org-dispatch-status {
+  min-height: 15px; margin: 0; padding: 0 4px; font-size: 12px; color: var(--text-dim);
 }
+.org-dispatch-status.is-error { color: var(--warn); }
+.org-dispatch-status.is-success { color: var(--accent-2); }
+.org-grid {
+  display: flex; flex-direction: column; align-items: center; gap: 0; overflow-x: auto; padding-bottom: 8px;
+}
+
+/* --- Org chart tree: root -> department -> role cards, connected by
+   CSS-drawn lines. Each child draws its OWN vertical stem (centered on
+   itself) plus, if it has siblings, a horizontal half-segment reaching to
+   the midpoint of the gap on either side. Adjacent siblings' segments meet
+   exactly in the middle of their shared gap, so the combined line spans
+   precisely from the first child's center to the last child's center —
+   never past it — regardless of how wide each child is. (A container-wide
+   left:0/right:0 line would overshoot past the outermost stems whenever a
+   child is narrower than half the row, which is what caused the previous
+   version's line to visibly stick out past the cards on the sides.) */
+.org-root-row { display: flex; justify-content: center; }
+.org-root {
+  background: var(--surface-3); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 20px; font-weight: 700; font-size: 13px; position: relative; margin-bottom: 22px;
+}
+.org-root::after {
+  content: ""; position: absolute; left: 50%; bottom: -22px; width: 1px; height: 22px;
+  background: var(--border); transform: translateX(-0.5px);
+}
+.org-depts {
+  display: inline-flex; gap: 40px; justify-content: center; position: relative; padding-top: 22px;
+}
+.org-dept {
+  display: flex; flex-direction: column; align-items: center; position: relative;
+}
+.org-dept::before {
+  content: ""; position: absolute; top: -22px; left: 50%; width: 1px; height: 22px;
+  background: var(--border); transform: translateX(-0.5px);
+}
+.org-dept:not(:only-child)::after {
+  content: ""; position: absolute; top: -22px; height: 1px; background: var(--border);
+}
+.org-dept:not(:only-child):first-child::after { left: 50%; right: -20px; }
+.org-dept:not(:only-child):last-child::after { left: -20px; right: 50%; }
+.org-dept:not(:only-child):not(:first-child):not(:last-child)::after { left: -20px; right: -20px; }
+.org-dept-label {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-3)); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 16px; font-weight: 700; font-size: 13px;
+  position: relative; margin-bottom: 22px;
+}
+.org-dept-label::after {
+  content: ""; position: absolute; left: 50%; bottom: -22px; width: 1px; height: 22px;
+  background: var(--border); transform: translateX(-0.5px);
+}
+/* Members within a department stack vertically (not side by side) — keeps
+   the chart's total width to roughly one card no matter how many people
+   are in a department, instead of growing wider with every new role and
+   forcing horizontal scroll. */
+.org-dept-roles {
+  display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 24px;
+}
+.org-dept-roles .role-card {
+  width: 240px; flex: none;
+}
+
 .role-card {
   background: linear-gradient(160deg, var(--surface-2), var(--surface));
   border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
@@ -300,7 +389,10 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
 }
 .role-head { display: flex; align-items: center; gap: 8px; }
 .role-icon { font-size: 20px; line-height: 1; flex: none; }
-.role-name { font-weight: 700; font-size: 14px; flex: 1; }
+.role-name {
+  font-weight: 700; font-size: 12px; flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .role-desc { font-size: 12px; line-height: 1.5; color: var(--text-dim); }
 .role-current {
   font-size: 12px; line-height: 1.4; color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 8%, transparent);
@@ -326,19 +418,26 @@ main { padding: 20px; max-width: 1400px; margin: 0 auto; }
   border: 1px solid var(--border); border-radius: 12px;
   padding: 8px; display: flex; flex-direction: column; gap: 2px; max-height: 75vh; overflow-y: auto;
 }
-.reports-list button {
-  text-align: left; background: transparent; border: 1px solid transparent; color: var(--text);
+.report-item { display: flex; align-items: stretch; gap: 2px; }
+.report-item-select {
+  flex: 1; min-width: 0; text-align: left; background: transparent; border: 1px solid transparent; color: var(--text);
   padding: 8px 10px; border-radius: 8px; cursor: pointer;
   display: flex; flex-direction: column; gap: 2px;
 }
-.reports-list button:hover { background: var(--surface-2); }
-.reports-list button.active {
+.report-item-select:hover { background: var(--surface-2); }
+.report-item-select.active {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .report-item-title { font-size: 13px; line-height: 1.4; }
-.reports-list button.active .report-item-title { font-weight: 700; color: var(--accent-2); }
+.report-item-select.active .report-item-title { font-weight: 700; color: var(--accent-2); }
 .report-item-date { font-size: 11px; color: var(--text-dim); font-family: var(--mono); }
+.report-item-delete {
+  flex: none; background: transparent; border: 1px solid transparent; border-radius: 8px;
+  cursor: pointer; font-size: 13px; padding: 0 8px; opacity: .55; transition: opacity .15s, background .15s;
+}
+.report-item-delete:hover:not(:disabled) { opacity: 1; background: color-mix(in srgb, var(--danger, #e5484d) 15%, transparent); }
+.report-item-delete:disabled { opacity: .3; cursor: default; }
 
 .report-view {
   background: color-mix(in srgb, var(--surface) 80%, transparent); backdrop-filter: blur(6px);

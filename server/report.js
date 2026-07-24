@@ -141,4 +141,12 @@ function readReport(filename) {
   return fs.readFileSync(p, "utf-8");
 }
 
-export { buildReport, generateAndSave, listReports, readReport };
+function deleteReport(filename) {
+  const safe = path.basename(filename);
+  const p = path.join(REPORTS_DIR, safe);
+  if (!fs.existsSync(p)) return false;
+  fs.unlinkSync(p);
+  return true;
+}
+
+export { buildReport, generateAndSave, listReports, readReport, deleteReport };

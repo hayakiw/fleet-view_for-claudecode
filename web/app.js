@@ -7,7 +7,7 @@ const STATUS_LABEL = {
   ended: "終了",
 };
 
-const ROLE_NAMES = { architect: "アーキテクト", engineer: "エンジニア", reviewer: "レビュアー" };
+let roleCache = {}; // id -> role, populated from /api/roles so it stays in sync with server/roles.js
 
 const sessions = new Map();
 
@@ -168,6 +168,20 @@ function upsertSession(s) {
   renderGrid();
 }
 
+// Unlike the "プロセス" tab (which re-renders straight from the in-memory
+// `sessions` map on every WS message), the org chart's status per role comes
+// from the server (/api/roles pairs each role with its latest matching
+// session). So a live session_update doesn't update it by itself — it only
+// refreshed on tab switch. Debounce a re-fetch whenever the org tab is the
+// one currently visible, so it live-updates too without hammering the
+// server during a burst of tool-call events.
+let orgRefreshTimer = null;
+function scheduleOrgRefresh() {
+  if (!document.getElementById("tab-org").classList.contains("active")) return;
+  clearTimeout(orgRefreshTimer);
+  orgRefreshTimer = setTimeout(loadRoles, 400);
+}
+
 // --- WebSocket live feed ---
 function connectWs() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -185,8 +199,10 @@ function connectWs() {
     if (msg.type === "snapshot") {
       for (const s of msg.payload) sessions.set(s.id, s);
       renderGrid();
+      scheduleOrgRefresh();
     } else if (msg.type === "session_update") {
       upsertSession(msg.payload);
+      scheduleOrgRefresh();
     } else if (msg.type === "report_generated") {
       loadReportsList();
     }
@@ -206,6 +222,24 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 });
 
 // --- Org chart (role-based agents, any project) ---
+
+// Collapsible instruction panel — closed by default (the markup already
+// starts with the "collapsed" class so there's no flash of the open state
+// before this runs); remembers open/closed across reloads once the user
+// has explicitly opened or closed it.
+const ORG_INSTRUCT_COLLAPSED_KEY = "fleetview-org-instruct-collapsed";
+const orgInstructPanel = document.getElementById("org-instruct-panel");
+const orgInstructToggle = document.getElementById("org-instruct-toggle");
+if (localStorage.getItem(ORG_INSTRUCT_COLLAPSED_KEY) === "0") {
+  orgInstructPanel.classList.remove("collapsed");
+  orgInstructToggle.setAttribute("aria-expanded", "true");
+}
+orgInstructToggle.addEventListener("click", () => {
+  const collapsed = orgInstructPanel.classList.toggle("collapsed");
+  orgInstructToggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  localStorage.setItem(ORG_INSTRUCT_COLLAPSED_KEY, collapsed ? "1" : "0");
+});
+
 async function loadProjectList() {
   const res = await fetch("/api/projects");
   const projects = await res.json();
@@ -238,46 +272,82 @@ document.getElementById("org-browse-btn").addEventListener("click", async () => 
 
 // Role cards are status-only displays now — dispatch happens once, from the
 // shared instruction form below, which auto-routes to whichever role fits.
-function renderRoles(roles) {
-  const grid = document.getElementById("org-grid");
-  grid.innerHTML = roles
-    .map((r) => {
-      const s = r.session;
-      const status = s ? s.status : "off_duty";
-      const label = s ? STATUS_LABEL[status] || status : "待機中(未起動)";
-      const latestTurn = s?.turns?.length ? s.turns[s.turns.length - 1] : null;
-      const isActive = s && ["running_tool", "thinking", "waiting_input", "compacting"].includes(status);
-      return `
-        <div class="role-card${isActive ? " is-active" : ""}" data-status="${escapeHtml(status)}">
-          <div class="role-head">
-            <span class="role-icon">${r.icon}</span>
-            <span class="role-name">${escapeHtml(r.name)}</span>
-            <span class="badge ${status}">${escapeHtml(label)}</span>
-          </div>
-          <div class="role-desc">${escapeHtml(r.description)}</div>
-          ${
-            latestTurn
-              ? `<div class="role-current${isActive ? "" : " role-current-past"}" data-tooltip="${escapeHtml(latestTurn.prompt || "")}">
-                  <span class="role-current-label">${isActive ? "実行中の指示" : `前回の指示（${fmtElapsed(s.updatedAt)}）`}</span>
-                  ${latestTurn.prompt ? escapeHtml(latestTurn.prompt) : "(バックグラウンド継続作業)"}
-                 </div>`
-              : ""
-          }
-        </div>`;
-    })
-    .join("");
+function roleCardHtml(r) {
+  const s = r.session;
+  const status = s ? s.status : "off_duty";
+  const label = s ? STATUS_LABEL[status] || status : "未起動";
+  const latestTurn = s?.turns?.length ? s.turns[s.turns.length - 1] : null;
+  const isActive = s && ["running_tool", "thinking", "waiting_input", "compacting"].includes(status);
+  return `
+    <div class="role-card${isActive ? " is-active" : ""}" data-status="${escapeHtml(status)}">
+      <div class="role-head">
+        <span class="role-icon">${r.icon}</span>
+        <span class="role-name">${escapeHtml(r.name)}</span>
+        <span class="badge ${status}">${escapeHtml(label)}</span>
+      </div>
+      <div class="role-desc">${escapeHtml(r.description)}</div>
+      ${
+        latestTurn
+          ? `<div class="role-current${isActive ? "" : " role-current-past"}" data-tooltip="${escapeHtml(latestTurn.prompt || "")}">
+              <span class="role-current-label">${isActive ? "実行中の指示" : `前回の指示（${fmtElapsed(s.updatedAt)}）`}</span>
+              ${latestTurn.prompt ? escapeHtml(latestTurn.prompt) : "(バックグラウンド継続作業)"}
+             </div>`
+          : ""
+      }
+    </div>`;
 }
+
+// Groups roles by team (department) and renders them as a small org chart:
+// a root node fanning out to department labels, each fanning out to its
+// role cards, connected by CSS-drawn bus/stub lines.
+function renderRoles(roles) {
+  roleCache = Object.fromEntries(roles.map((r) => [r.id, r]));
+
+  const teams = new Map();
+  for (const r of roles) {
+    const team = r.team || "その他";
+    if (!teams.has(team)) teams.set(team, []);
+    teams.get(team).push(r);
+  }
+
+  const deptsHtml = [...teams.entries()]
+    .map(
+      ([team, members]) => `
+        <div class="org-dept">
+          <div class="org-dept-label">${escapeHtml(team)}</div>
+          <div class="org-dept-roles">
+            ${members.map(roleCardHtml).join("")}
+          </div>
+        </div>`
+    )
+    .join("");
+
+  document.getElementById("org-grid").innerHTML = `
+    <div class="org-root-row">
+      <div class="org-root">📝 指示</div>
+    </div>
+    <div class="org-depts">${deptsHtml}</div>`;
+}
+
+// Auto-grow the composer textarea like a chat input (up to the CSS max-height,
+// where it starts scrolling instead of growing further).
+const orgInstructionInput = document.getElementById("org-instruction-input");
+orgInstructionInput.addEventListener("input", () => {
+  orgInstructionInput.style.height = "auto";
+  orgInstructionInput.style.height = `${orgInstructionInput.scrollHeight}px`;
+});
 
 document.getElementById("org-dispatch-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = document.getElementById("org-dispatch-btn");
+  const status = document.getElementById("org-dispatch-status");
   const cwd = document.getElementById("org-project-input").value.trim();
-  const instructionInput = document.getElementById("org-instruction-input");
-  const instruction = instructionInput.value.trim();
+  const instruction = orgInstructionInput.value.trim();
   if (!cwd) { alert("対象プロジェクトのディレクトリを入力してください。"); return; }
   if (!instruction) { alert("指示内容を入力してください。"); return; }
   btn.disabled = true;
-  btn.textContent = "振り分け中…";
+  status.className = "org-dispatch-status";
+  status.textContent = "振り分け中…";
   try {
     const res = await fetch("/api/roles/dispatch", {
       method: "POST",
@@ -286,19 +356,24 @@ document.getElementById("org-dispatch-form").addEventListener("submit", async (e
     });
     const data = await res.json();
     if (res.ok) {
-      const roleName = ROLE_NAMES[data.roleId] || data.roleId;
-      btn.textContent = `✓ ${roleName}が起動しました`;
-      instructionInput.value = "";
+      const roleName = roleCache[data.roleId]?.name || data.roleId;
+      status.className = "org-dispatch-status is-success";
+      status.textContent = `✓ ${roleName}が起動しました`;
+      orgInstructionInput.value = "";
+      orgInstructionInput.style.height = "auto";
       document.querySelector('.tab-btn[data-tab="agents"]').click();
     } else {
-      btn.textContent = "起動に失敗しました";
+      status.className = "org-dispatch-status is-error";
+      status.textContent = "起動に失敗しました";
     }
   } catch {
-    btn.textContent = "起動に失敗しました";
+    status.className = "org-dispatch-status is-error";
+    status.textContent = "起動に失敗しました";
   } finally {
     setTimeout(() => {
       btn.disabled = false;
-      btn.textContent = "▶ 起動する（自動振り分け）";
+      status.textContent = "";
+      status.className = "org-dispatch-status";
     }, 3000);
   }
 });
@@ -347,27 +422,43 @@ async function loadReportsList() {
   const list = document.getElementById("reports-list");
   if (reports.length === 0) {
     list.innerHTML = '<p class="hint">まだレポートがありません。</p>';
+    document.getElementById("report-view").innerHTML = '<p class="hint">左のリストからレポートを選択してください。</p>';
     return;
   }
   list.innerHTML = reports
     .map(
       (r) => `
-        <button data-file="${escapeHtml(r.filename)}">
-          <div class="report-item-title">${escapeHtml(r.title)}</div>
-          <div class="report-item-date">${escapeHtml(parseReportDate(r.filename))}</div>
-        </button>`
+        <div class="report-item">
+          <button class="report-item-select" data-file="${escapeHtml(r.filename)}">
+            <div class="report-item-title">${escapeHtml(r.title)}</div>
+            <div class="report-item-date">${escapeHtml(parseReportDate(r.filename))}</div>
+          </button>
+          <button class="report-item-delete" data-file="${escapeHtml(r.filename)}" title="削除">🗑</button>
+        </div>`
     )
     .join("");
-  list.querySelectorAll("button").forEach((btn) => {
+  list.querySelectorAll(".report-item-select").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      list.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      list.querySelectorAll(".report-item-select").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       const res = await fetch(`/api/reports/${encodeURIComponent(btn.dataset.file)}`);
       const md = await res.text();
       document.getElementById("report-view").innerHTML = mdToHtml(md);
     });
   });
-  list.querySelector("button")?.click();
+  list.querySelectorAll(".report-item-delete").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("このレポートを削除しますか？")) return;
+      btn.disabled = true;
+      try {
+        await fetch(`/api/reports/${encodeURIComponent(btn.dataset.file)}`, { method: "DELETE" });
+        await loadReportsList();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+  list.querySelector(".report-item-select")?.click();
 }
 
 document.getElementById("gen-report-btn").addEventListener("click", async () => {

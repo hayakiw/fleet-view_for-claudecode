@@ -33,17 +33,28 @@
   </section>
 
   <section id="tab-org" class="tab-panel">
-    <p class="hint org-hint">何をしてほしいか書くだけで、内容に応じて適切な役割（アーキテクト/エンジニア/レビュアー）に自動で振り分けて起動します。</p>
-    <div class="org-project-bar">
-      <label for="org-project-input">対象プロジェクト</label>
-      <input id="org-project-input" type="text" list="org-project-list" placeholder="例: C:\Users\hayak\work\myapp" autocomplete="off" />
-      <datalist id="org-project-list"></datalist>
-      <button type="button" id="org-browse-btn">📁 参照…</button>
+    <div class="org-instruct-panel collapsed" id="org-instruct-panel">
+      <button type="button" id="org-instruct-toggle" class="org-instruct-toggle" aria-expanded="false" aria-controls="org-instruct-body">
+        <span class="org-instruct-toggle-label">📝 指示を出す</span>
+        <span class="org-instruct-toggle-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="org-instruct-body" id="org-instruct-body">
+        <p class="hint org-hint">何をしてほしいか書くだけで、内容に応じて適切な役割（開発: アーキテクト/エンジニア/レビュアー(セキュリティ含む)/機能提案、営業: リサーチャー/プレゼンター/議事録、デザイン: LP/システム）に自動で振り分けて起動します。</p>
+        <div class="org-project-bar">
+          <label for="org-project-input">対象プロジェクト</label>
+          <input id="org-project-input" type="text" list="org-project-list" placeholder="例: C:\Users\hayak\work\myapp" autocomplete="off" />
+          <datalist id="org-project-list"></datalist>
+          <button type="button" id="org-browse-btn">📁 参照…</button>
+        </div>
+        <form id="org-dispatch-form" class="org-dispatch-form">
+          <div class="org-composer">
+            <textarea id="org-instruction-input" placeholder="例: ログイン画面のバリデーションを直して／このコードをレビューして／通知機能の設計を考えて" rows="1"></textarea>
+            <button type="submit" id="org-dispatch-btn" aria-label="起動する（自動振り分け）" title="起動する（自動振り分け）">➤</button>
+          </div>
+          <p id="org-dispatch-status" class="org-dispatch-status"></p>
+        </form>
+      </div>
     </div>
-    <form id="org-dispatch-form" class="org-dispatch-form">
-      <textarea id="org-instruction-input" placeholder="例: ログイン画面のバリデーションを直して／このコードをレビューして／通知機能の設計を考えて" rows="3"></textarea>
-      <button type="submit" id="org-dispatch-btn">▶ 起動する（自動振り分け）</button>
-    </form>
     <div id="org-grid" class="org-grid"></div>
   </section>
 
