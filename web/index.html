@@ -43,7 +43,7 @@
           <button type="button" class="org-mode-btn active" data-mode="instruct" role="tab" aria-selected="true">📝 指示</button>
           <button type="button" class="org-mode-btn" data-mode="goal" role="tab" aria-selected="false">🎯 目標</button>
         </div>
-        <p class="hint org-hint" id="org-mode-hint">何をしてほしいか書くだけで、内容に応じて適切な役割（開発: アーキテクト/エンジニア/レビュアー(セキュリティ含む)/機能提案、営業: リサーチャー/プレゼンター/議事録、デザイン: LP/システム）に自動で振り分けて起動します。</p>
+        <p class="hint org-hint" id="org-mode-hint">何をしてほしいか書くだけで、内容に応じた役割に自動で振り分けて起動します。</p>
         <div class="org-project-bar">
           <label for="org-project-select">対象プロジェクト</label>
           <select id="org-project-select">
@@ -54,7 +54,7 @@
         </div>
         <form id="org-dispatch-form" class="org-dispatch-form">
           <div class="org-composer">
-            <textarea id="org-instruction-input" placeholder="例: ログイン画面のバリデーションを直して／このコードをレビューして／通知機能の設計を考えて" rows="1"></textarea>
+            <textarea id="org-instruction-input" placeholder="例: ログイン画面のバリデーションを直して／レビューして／設計して" rows="1"></textarea>
             <button type="submit" id="org-dispatch-btn" aria-label="起動する（自動振り分け）" title="起動する（自動振り分け）">➤</button>
           </div>
           <p id="org-dispatch-status" class="org-dispatch-status"></p>
